@@ -1,11 +1,27 @@
-// AZURE BAY — Lane B: pedestrians (NPC pejalan kaki).
+// AZURE BAY — pedestrians (round-2 rewrite by Lane 2).
 // Twelve walkers stroll the sidewalks beside the roads, step aside when the
 // player or a car gets too close, and run away from fast cars and gunshots.
-// Dead pedestrians (Lane D sets ped.alive = false) are hidden and respawn
-// on a random sidewalk after ~10 seconds. Browser ES modules only — no
-// Node/Deno APIs. Every sidewalk point is checked with city.isWalkable so
-// no pedestrian ever walks into the water, and building collisions reuse
-// the same circle-vs-AABB push-out the player uses.
+// Dead pedestrians (other lanes set ped.alive = false) are hidden and
+// respawn on a random sidewalk after ~10 seconds. Browser ES modules only
+// — no Node/Deno APIs. Every sidewalk point is checked with
+// city.isWalkable so no pedestrian ever walks into the water, and
+// building collisions reuse the same circle-vs-AABB push-out the player
+// uses.
+//
+// ROUND-2 FIX — SPAWN / PATH GUARDS. The old sidewalk tracing only asked
+// isWalkable, but building plots may sit 11 m off a road centreline with
+// an 8 m half-footprint — so a building EDGE can reach 3 m from the
+// centreline, straight through the 4.0-6.4 m sidewalk band. Sidewalk
+// lines could therefore run through walls, and a spawn point could land
+// inside a building. Now:
+//   - traceSidewalkRuns also rejects every sample that falls inside a
+//     building/rail collider, so runs are trimmed at walls instead of
+//     cutting through them;
+//   - placeWalker verifies its spawn point (walkable + collider
+//     push-out) and retries on another segment when the spot was inside
+//     a building, instead of spawning at the wall;
+//   - the end-of-frame separation pass pushes walkers out of colliders
+//     as well, so two shoved-apart peds can never end up inside a wall.
 
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
@@ -39,7 +55,7 @@ const PED_GROUND_Y = CONFIG.groundY + 0.15; // 1.65: sidewalk top surface
 const SIDEWALK_INNER = 4.0;
 const SIDEWALK_OUTER = 6.4;
 
-function distToRoad(x, z) {
+function nearestRoadGap(x, z) {
   let best = Infinity;
   for (const s of CONFIG.roads) {
     const b = CONFIG.bridge;
@@ -67,30 +83,29 @@ const PANTS_COLORS = [0x1e293b, 0x334155, 0x3f3f46, 0x44403c];
 const HAIR_COLORS = [0x111827, 0x3f2d20, 0x6b7280, 0x78350f, 0x451a03];
 const SHOE_COLORS = [0x0f172a, 0x451a03, 0x1f2937, 0x7f1d1d];
 
-function rand(min, max) {
+function randRange(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function pick(list) {
+function pickOne(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-function clamp01(v) {
+function clampUnit(v) {
   return Math.max(0, Math.min(1, v));
 }
 
 // Closest point on segment (ax,az)-(bx,bz) to (x,z); returns {x, z, t}.
-function closestOnSegment(x, z, seg) {
+function nearestPointOnLine(x, z, seg) {
   const dx = seg.bx - seg.ax;
   const dz = seg.bz - seg.az;
   const lenSq = dx * dx + dz * dz;
-  let t = lenSq === 0 ? 0 : ((x - seg.ax) * dx + (z - seg.az) * dz) / lenSq;
-  t = clamp01(t);
+  const t = lenSq === 0 ? 0 : clampUnit(((x - seg.ax) * dx + (z - seg.az) * dz) / lenSq);
   return { x: seg.ax + t * dx, z: seg.az + t * dz, t };
 }
 
 /** Push a circle (x, z, radius) out of every AABB it overlaps. */
-function pushOutOfColliders(x, z, radius, colliders) {
+function shoveOutOfBoxes(x, z, radius, colliders) {
   for (const box of colliders) {
     if (box.max.y < 0 || box.min.y > 1.8) continue;
     const cx = Math.max(box.min.x, Math.min(x, box.max.x));
@@ -120,13 +135,28 @@ function pushOutOfColliders(x, z, radius, colliders) {
   return { x, z };
 }
 
+// True when the point (x, z) falls inside any collider AABB (buildings,
+// bridge rails) expanded by the pedestrian radius — i.e. a walker
+// standing there would already be clipping a wall.
+function pointHitsBox(x, z, colliders) {
+  for (const box of colliders) {
+    if (box.max.y < 0 || box.min.y > 1.8) continue;
+    if (x >= box.min.x - PED_RADIUS && x <= box.max.x + PED_RADIUS
+      && z >= box.min.z - PED_RADIUS && z <= box.max.z + PED_RADIUS) return true;
+  }
+  return false;
+}
+
 // Build one sidewalk segment per side of every road: a line parallel to the
 // road centreline, SIDEWALK_OFFSET metres out. Only the longest walkable
 // run of each line is kept, so corners that fall off the island (into the
-// water) are trimmed instead of dropping the whole sidewalk.
-function buildSidewalks(city) {
+// water) are trimmed instead of dropping the whole sidewalk. Round-2: a
+// sample also fails when it lands inside a building, so a sidewalk that
+// would have cut through a tower is trimmed at the wall instead.
+function traceSidewalkRuns(city) {
   const segments = [];
   const SAMPLES = 24;
+  const colliders = city && Array.isArray(city.colliders) ? city.colliders : null;
   for (const road of CONFIG.roads) {
     const len = Math.hypot(road.x2 - road.x1, road.z2 - road.z1);
     if (len < 10) continue;
@@ -146,7 +176,8 @@ function buildSidewalks(city) {
         const t = i / SAMPLES;
         const x = road.x1 + dx * len * t + ox;
         const z = road.z1 + dz * len * t + oz;
-        const ok = city.isWalkable ? city.isWalkable(x, z) : true;
+        let ok = city.isWalkable ? city.isWalkable(x, z) : true;
+        if (ok && colliders && pointHitsBox(x, z, colliders)) ok = false;
         if (ok && runStart < 0) runStart = i;
         if (!ok || i === SAMPLES) {
           const runEnd = ok ? i : i - 1;
@@ -177,7 +208,7 @@ function buildSidewalks(city) {
   return segments;
 }
 
-function makeBlobShadow() {
+function newBlobShadow() {
   const geo = new THREE.CircleGeometry(0.5, 24);
   const mat = new THREE.MeshBasicMaterial({
     color: 0x000000,
@@ -195,14 +226,14 @@ function makeBlobShadow() {
 // shirt/skin/pants/hair/shoe colour, a random height (0.94-1.06x) and,
 // one in three, a beanie instead of a hair cap — so the crowd reads as
 // individuals, not clones. Visual only; walk/flee/idle live in update().
-function buildPedMesh() {
+function assembleWalker() {
   const group = new THREE.Group();
 
-  const jacket = new THREE.MeshStandardMaterial({ color: pick(JACKET_COLORS), roughness: 0.8 });
-  const skin = new THREE.MeshStandardMaterial({ color: pick(SKIN_COLORS), roughness: 0.7 });
-  const pants = new THREE.MeshStandardMaterial({ color: pick(PANTS_COLORS), roughness: 0.9 });
-  const hair = new THREE.MeshStandardMaterial({ color: pick(HAIR_COLORS), roughness: 0.95 });
-  const shoeMat = new THREE.MeshStandardMaterial({ color: pick(SHOE_COLORS), roughness: 0.85 });
+  const jacket = new THREE.MeshStandardMaterial({ color: pickOne(JACKET_COLORS), roughness: 0.8 });
+  const skin = new THREE.MeshStandardMaterial({ color: pickOne(SKIN_COLORS), roughness: 0.7 });
+  const pants = new THREE.MeshStandardMaterial({ color: pickOne(PANTS_COLORS), roughness: 0.9 });
+  const hair = new THREE.MeshStandardMaterial({ color: pickOne(HAIR_COLORS), roughness: 0.95 });
+  const shoeMat = new THREE.MeshStandardMaterial({ color: pickOne(SHOE_COLORS), roughness: 0.85 });
 
   // Legs (hips ~0.83) + shoes.
   const legGeo = new THREE.CapsuleGeometry(0.095, 0.55, 4, 8);
@@ -264,16 +295,16 @@ function buildPedMesh() {
   group.add(handR);
 
   // Random height so the crowd is not a row of identical clones.
-  group.scale.setScalar(rand(0.94, 1.06));
+  group.scale.setScalar(randRange(0.94, 1.06));
 
-  group.add(makeBlobShadow());
+  group.add(newBlobShadow());
   return group;
 }
 
 // Normalise one entry of the `cars` array to {x, z, vx, vz, speed}.
 // Accepts car objects ({position: Vector3, speed, heading}), plain
 // {x, z, speed} / {x, z, vx, vz} points, and bare Vector3s.
-function normaliseCar(entry) {
+function readCarThreat(entry) {
   if (!entry) return null;
   let x;
   let z;
@@ -302,7 +333,7 @@ function normaliseCar(entry) {
   return { x, z, vx, vz, speed: Math.abs(speed) };
 }
 
-function normaliseGunshot(g) {
+function readShot(g) {
   if (!g) return null;
   if (g.position) return { x: g.position.x, z: g.position.z };
   if (typeof g.x === 'number' && typeof g.z === 'number') return { x: g.x, z: g.z };
@@ -310,7 +341,7 @@ function normaliseGunshot(g) {
 }
 
 export function createPedestrians(scene, city) {
-  let sidewalks = buildSidewalks(city);
+  let sidewalks = traceSidewalkRuns(city);
   if (sidewalks.length === 0) {
     // Fallback so the game still has walkers even if no road offset is
     // walkable: a short stroll line beside the player spawn, if it is land.
@@ -322,14 +353,41 @@ export function createPedestrians(scene, city) {
 
   const peds = [];
 
-  function spawnPed(ped) {
-    const seg = pick(sidewalks);
-    const t = rand(0.05, 0.95);
-    const px = seg.ax + (seg.bx - seg.ax) * t;
-    const pz = seg.az + (seg.bz - seg.az) * t;
+  function placeWalker(ped) {
+    // Pick a stroll point, then verify it: walkable land AND clear of
+    // every building. A point that needs a long push-out was inside a
+    // wall — retry on another segment instead of spawning at the wall.
+    // (The common path consumes rand in the same order as before, so
+    // spawn variety is unchanged.)
+    let px = 0;
+    let pz = 0;
+    let seg = null;
+    let settled = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const cand = pickOne(sidewalks);
+      const t = randRange(0.05, 0.95);
+      const cx = cand.ax + (cand.bx - cand.ax) * t;
+      const cz = cand.az + (cand.bz - cand.az) * t;
+      if (city.isWalkable && !city.isWalkable(cx, cz)) continue;
+      let cleared = { x: cx, z: cz };
+      if (city.colliders) cleared = shoveOutOfBoxes(cx, cz, PED_RADIUS, city.colliders);
+      if (Math.hypot(cleared.x - cx, cleared.z - cz) > 1.0) continue;
+      seg = cand;
+      px = cleared.x;
+      pz = cleared.z;
+      settled = true;
+      break;
+    }
+    if (!settled) {
+      // Last resort: first candidate as-is (the old behaviour).
+      seg = pickOne(sidewalks);
+      const t = randRange(0.05, 0.95);
+      px = seg.ax + (seg.bx - seg.ax) * t;
+      pz = seg.az + (seg.bz - seg.az) * t;
+    }
     ped.seg = seg;
     ped.dirSign = Math.random() < 0.5 ? 1 : -1;
-    ped.walkSpeed = rand(WALK_SPEED_MIN, WALK_SPEED_MAX);
+    ped.walkSpeed = randRange(WALK_SPEED_MIN, WALK_SPEED_MAX);
     ped.state = 'walk';
     ped.speed = ped.walkSpeed;
     ped.alive = true;
@@ -338,7 +396,7 @@ export function createPedestrians(scene, city) {
     ped.deadTimer = 0;
     ped.fleeDx = 0;
     ped.fleeDz = 0;
-    ped.bobPhase = rand(0, Math.PI * 2);
+    ped.bobPhase = randRange(0, Math.PI * 2);
     ped.groundY = PED_GROUND_Y; // surface under the ped; eases down on roads
     ped.heading = Math.atan2(seg.dx * ped.dirSign, seg.dz * ped.dirSign);
     ped.mesh.position.set(px, PED_GROUND_Y, pz);
@@ -347,7 +405,7 @@ export function createPedestrians(scene, city) {
   }
 
   for (let i = 0; i < PED_COUNT; i++) {
-    const mesh = buildPedMesh();
+    const mesh = assembleWalker();
     scene.add(mesh);
     const ped = {
       position: mesh.position,
@@ -356,7 +414,7 @@ export function createPedestrians(scene, city) {
       mesh,
       state: 'walk',
       alive: true,
-      // Internal fields (Lane D only touches `alive`).
+      // Internal fields (other lanes only touch `alive`).
       seg: null,
       dirSign: 1,
       walkSpeed: 1.5,
@@ -368,14 +426,14 @@ export function createPedestrians(scene, city) {
       bobPhase: 0,
       groundY: PED_GROUND_Y,
     };
-    if (sidewalks.length > 0) spawnPed(ped);
+    if (sidewalks.length > 0) placeWalker(ped);
     peds.push(ped);
   }
 
   // Step (x, z) toward (tx, tz) by at most `step` metres, refusing any
   // axis that would leave walkable land, then pushing out of buildings.
   // Returns the new point.
-  function stepChecked(x, z, tx, tz, step, cityNow) {
+  function stepSafely(x, z, tx, tz, step, cityNow) {
     let nx = x;
     let nz = z;
     const dx = tx - x;
@@ -391,14 +449,14 @@ export function createPedestrians(scene, city) {
       if (!cityNow.isWalkable(nx, nz)) nz = z;
     }
     if (cityNow && cityNow.colliders) {
-      const pushed = pushOutOfColliders(nx, nz, PED_RADIUS, cityNow.colliders);
+      const pushed = shoveOutOfBoxes(nx, nz, PED_RADIUS, cityNow.colliders);
       nx = pushed.x;
       nz = pushed.z;
     }
     return { x: nx, z: nz };
   }
 
-  function faceMovement(ped, mx, mz, dt) {
+  function turnTowardMotion(ped, mx, mz, dt) {
     if (Math.hypot(mx, mz) < 1e-6) return;
     const target = Math.atan2(mx, mz);
     let diff = target - ped.heading;
@@ -417,7 +475,7 @@ export function createPedestrians(scene, city) {
     const carThreats = [];
     if (Array.isArray(cars)) {
       for (const entry of cars) {
-        const c = normaliseCar(entry);
+        const c = readCarThreat(entry);
         if (c) carThreats.push(c);
       }
     }
@@ -436,7 +494,7 @@ export function createPedestrians(scene, city) {
     const shots = [];
     if (Array.isArray(gunshots)) {
       for (const g of gunshots) {
-        const s = normaliseGunshot(g);
+        const s = readShot(g);
         if (s) shots.push(s);
       }
     }
@@ -452,7 +510,7 @@ export function createPedestrians(scene, city) {
           ped.speed = 0;
         } else {
           ped.deadTimer -= clampedDt;
-          if (ped.deadTimer <= 0) spawnPed(ped);
+          if (ped.deadTimer <= 0) placeWalker(ped);
         }
         continue;
       }
@@ -508,7 +566,7 @@ export function createPedestrians(scene, city) {
         ped.fleeTimer -= clampedDt;
         const step = FLEE_SPEED * clampedDt;
         const before = { x: pos.x, z: pos.z };
-        const next = stepChecked(
+        const next = stepSafely(
           pos.x, pos.z,
           pos.x + ped.fleeDx, pos.z + ped.fleeDz,
           step, cityNow,
@@ -531,7 +589,7 @@ export function createPedestrians(scene, city) {
         movedX = pos.x - before.x;
         movedZ = pos.z - before.z;
         ped.speed = Math.hypot(movedX, movedZ) / clampedDt;
-        faceMovement(ped, movedX, movedZ, clampedDt);
+        turnTowardMotion(ped, movedX, movedZ, clampedDt);
         if (ped.fleeTimer <= 0) ped.state = 'walk';
       } else if (ped.state === 'idle') {
         // ---- idle: standing still after stepping aside --------------------
@@ -565,7 +623,7 @@ export function createPedestrians(scene, city) {
           const sz = pos.z + pz * away * SIDESTEP;
           if (!cityNow.isWalkable || cityNow.isWalkable(sx, sz)) {
             const pushed = cityNow.colliders
-              ? pushOutOfColliders(sx, sz, PED_RADIUS, cityNow.colliders)
+              ? shoveOutOfBoxes(sx, sz, PED_RADIUS, cityNow.colliders)
               : { x: sx, z: sz };
             pos.x = pushed.x;
             pos.z = pushed.z;
@@ -575,12 +633,12 @@ export function createPedestrians(scene, city) {
           ped.speed = 0;
         } else {
           const seg = ped.seg;
-          const closest = closestOnSegment(pos.x, pos.z, seg);
+          const closest = nearestPointOnLine(pos.x, pos.z, seg);
           const offLine = Math.hypot(pos.x - closest.x, pos.z - closest.z);
           const before = { x: pos.x, z: pos.z };
           if (offLine > RETURN_DIST) {
             // Pushed off the sidewalk (e.g. after fleeing): walk back to it.
-            const next = stepChecked(
+            const next = stepSafely(
               pos.x, pos.z, closest.x, closest.z,
               ped.walkSpeed * clampedDt, cityNow,
             );
@@ -595,14 +653,14 @@ export function createPedestrians(scene, city) {
               if (!cityNow.isWalkable(nx, nz)) nz = pos.z;
             }
             if (cityNow && cityNow.colliders) {
-              const pushed = pushOutOfColliders(nx, nz, PED_RADIUS, cityNow.colliders);
+              const pushed = shoveOutOfBoxes(nx, nz, PED_RADIUS, cityNow.colliders);
               nx = pushed.x;
               nz = pushed.z;
             }
             pos.x = nx;
             pos.z = nz;
             // Turn around at the segment ends.
-            const proj = closestOnSegment(pos.x, pos.z, seg);
+            const proj = nearestPointOnLine(pos.x, pos.z, seg);
             if (proj.t <= 0.001 || proj.t >= 0.999) {
               ped.dirSign *= -1;
               pos.x = seg.ax + (seg.bx - seg.ax) * Math.max(0.001, Math.min(0.999, proj.t));
@@ -612,7 +670,7 @@ export function createPedestrians(scene, city) {
           const movedX = pos.x - before.x;
           const movedZ = pos.z - before.z;
           ped.speed = Math.hypot(movedX, movedZ) / clampedDt;
-          faceMovement(ped, movedX, movedZ, clampedDt);
+          turnTowardMotion(ped, movedX, movedZ, clampedDt);
         }
       }
 
@@ -621,7 +679,7 @@ export function createPedestrians(scene, city) {
       // onto the road or grass must drop to groundY (1.5) instead of
       // floating 0.15 m in the air. The height eases toward the target
       // so crossing the curb is a smooth step down, not a pop.
-      const dRoad = distToRoad(pos.x, pos.z);
+      const dRoad = nearestRoadGap(pos.x, pos.z);
       const surfaceY = (dRoad >= SIDEWALK_INNER && dRoad <= SIDEWALK_OUTER)
         ? PED_GROUND_Y
         : CONFIG.groundY;
@@ -635,6 +693,8 @@ export function createPedestrians(scene, city) {
     }
 
     // Light separation so walkers never stack on top of each other.
+    // Round-2: a shoved-apart walker is pushed out of colliders too, so
+    // separation can never park a ped inside a wall.
     for (let i = 0; i < peds.length; i++) {
       const a = peds[i];
       if (!a.alive) continue;
@@ -648,10 +708,18 @@ export function createPedestrians(scene, city) {
         const push = (0.8 - d) / 2;
         const ux = dx / d;
         const uz = dz / d;
-        const ax = a.mesh.position.x - ux * push;
-        const az = a.mesh.position.z - uz * push;
-        const bx = b.mesh.position.x + ux * push;
-        const bz = b.mesh.position.z + uz * push;
+        let ax = a.mesh.position.x - ux * push;
+        let az = a.mesh.position.z - uz * push;
+        let bx = b.mesh.position.x + ux * push;
+        let bz = b.mesh.position.z + uz * push;
+        if (cityNow.colliders) {
+          const pa = shoveOutOfBoxes(ax, az, PED_RADIUS, cityNow.colliders);
+          ax = pa.x;
+          az = pa.z;
+          const pb = shoveOutOfBoxes(bx, bz, PED_RADIUS, cityNow.colliders);
+          bx = pb.x;
+          bz = pb.z;
+        }
         if (!cityNow.isWalkable || cityNow.isWalkable(ax, az)) {
           a.mesh.position.x = ax;
           a.mesh.position.z = az;

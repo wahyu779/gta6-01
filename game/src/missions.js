@@ -1,13 +1,12 @@
-// missions.js — AZURE BAY mission engine + Misi 1-5 (Lane A, Fase 3)
+// missions.js — AZURE BAY mission engine + Missions 1-5, rewritten round 2.
 // Pure logic, no THREE / DOM dependency: positions are plain {x, z} in
 // world metres, so the engine can be unit-checked with plain node.
-// Lane E wires it into main.js: import + createMissions(), call
-// Missions.update(dt, player, ctx) every playing frame, feed combat
-// kills through ctx.kills (or noteKill), and draw markers() on the 3D
-// scene + minimap. Dialog lines are shown through window.Dialog when
-// it exists (dialog.js); when it does not, missions still run — the
-// lines are returned by start()/update() so Lane E can show them
-// another way.
+// main.js wires it in: import + createMissions(), call update(dt,
+// player, ctx) every playing frame, feed combat kills through ctx.kills
+// (or noteKill), and draw markers() on the 3D scene + minimap. Dialog
+// lines are shown through window.Dialog when it exists (dialog.js);
+// when it does not, missions still run — the lines are returned by
+// start()/update() so the caller can show them another way.
 //
 // Street map (see config.js roads + props.js signs):
 //   OCEAN AVE  — north island, north ring road (z = -190)
@@ -20,8 +19,32 @@
 // CH.1 "LOW TIDE" arc: the player washes up in Azure Bay owing Rook a
 // favour, and works it off job by job until the ledger job (M5) flips
 // the table — the first arc of the game, ending on a hook for CH.2.
+//
+// CHECKPOINTS, PERSISTED (round-2 fix): the old checkpoint — where the
+// player entered the current stage — lived only in memory, so a reload
+// mid-mission wiped it and a death after a reload respawned the player
+// with nowhere to go back to. Checkpoints now live in localStorage
+// (save.js: persistCheckpoint / readCheckpoint / clearCheckpoint, key
+// 'azure-bay-checkpoint-v1'). Every stage entry writes one
+// { missionId, stage, cash, respect, playerPos, health }; finishing or
+// abandoning a mission clears it; respawning falls back to the stored
+// record when the in-memory one is gone (after a reload). The cash /
+// respect / health numbers come from an economy provider main.js can
+// register (setEconomyProvider); without one they persist as safe
+// defaults and the mission + stage + position still survive, which is
+// the part the respawn actually needs.
+//
+// STATE-TRANSITION VALIDATION (round-2 fix): the stage index is now
+// moved only through guarded paths — forward by exactly one stage
+// (advance), backward only to the recorded checkpoint stage (respawn),
+// or set once at resume after a range + prerequisite check. A jump of
+// two stages, a stage past the end, or a resume into a mission whose
+// prerequisites are not met is refused instead of silently corrupting
+// the run.
 
-const SAVE_KEY = 'azurebay.missions.v1';
+import { persistCheckpoint, readCheckpoint, clearCheckpoint } from './save.js';
+
+const COMPLETED_KEY = 'azurebay.missions.v1';
 
 // ---- mission definitions ---------------------------------------------------
 // Stage types:
@@ -31,8 +54,10 @@ const SAVE_KEY = 'azurebay.missions.v1';
 //   collect — reach the target to pick the item up (stage.count, default 1)
 //   deliver — reach the target carrying the item (same check as goto;
 //             kept as its own type so the HUD/markers can word it right)
-// Every stage: { type, x, z, radius, text } — text is the HUD objective
-// line for that stage. radius defaults to 6 m (drive: 8 m).
+// Every stage carries: { type, text, x, z, radius, kills?, count?,
+// lines? } — text is the HUD objective line for that stage, lines are
+// the mid-mission dialog shown on stage advance. radius defaults to
+// 6 m (drive: 8 m).
 
 const MISSION_DEFS = [
   {
@@ -54,19 +79,19 @@ const MISSION_DEFS = [
     ],
     stages: [
       {
-        type: 'goto', x: 30, z: -90, radius: 6, text: 'Meet Rook on PALM BLVD',
+        type: 'goto', text: 'Meet Rook on PALM BLVD', x: 30, z: -90, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'That is the package. Do not drop it in the bay — the last runner did, and he is still paying for it.' },
         ],
       },
       {
-        type: 'drive', x: 0, z: 0, radius: 8, text: 'Drive the package across BRIDGE RD',
+        type: 'drive', text: 'Drive the package across BRIDGE RD', x: 0, z: 0, radius: 8,
         lines: [
           { speaker: 'ROOK', text: 'Bridge is the only way over. Keep it steady — the package does not swim.' },
         ],
       },
       {
-        type: 'deliver', x: 108, z: 150, radius: 6, text: 'Drop the package at the MARINA DR pier',
+        type: 'deliver', text: 'Drop the package at the MARINA DR pier', x: 108, z: 150, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Pier office, south end. Hand it to the man in the blue jacket — no small talk.' },
         ],
@@ -92,25 +117,25 @@ const MISSION_DEFS = [
     ],
     stages: [
       {
-        type: 'collect', x: 60, z: 140, radius: 6, text: 'Pick up the stash on CORAL WAY (east)',
+        type: 'collect', text: 'Pick up the stash on CORAL WAY (east)', x: 60, z: 140, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'First stash, east end of Coral Way. Blue dumpster — quick and quiet.' },
         ],
       },
       {
-        type: 'collect', x: -60, z: 140, radius: 6, text: 'Pick up the stash on CORAL WAY (west)',
+        type: 'collect', text: 'Pick up the stash on CORAL WAY (west)', x: -60, z: 140, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Second one is on the west end. Same deal — do not let anyone see you take it.' },
         ],
       },
       {
-        type: 'collect', x: 0, z: 190, radius: 6, text: 'Pick up the stash on MARINA DR',
+        type: 'collect', text: 'Pick up the stash on MARINA DR', x: 0, z: 190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Last stash is down by the marina. Then bring them all to my man up north.' },
         ],
       },
       {
-        type: 'deliver', x: 30, z: -190, radius: 6, text: 'Deliver the stashes to OCEAN AVE',
+        type: 'deliver', text: 'Deliver the stashes to OCEAN AVE', x: 30, z: -190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Ocean Ave, my man in the grey coat. Every stash — or do not bother coming back.' },
         ],
@@ -136,19 +161,19 @@ const MISSION_DEFS = [
     ],
     stages: [
       {
-        type: 'goto', x: 0, z: -60, radius: 8, text: 'Reach the north end of BRIDGE RD',
+        type: 'goto', text: 'Reach the north end of BRIDGE RD', x: 0, z: -60, radius: 8,
         lines: [
           { speaker: 'ROOK', text: 'They are on the bridge, shaking down my drivers. End of the line for them.' },
         ],
       },
       {
-        type: 'combat', x: 0, z: 0, radius: 12, kills: 3, text: 'Clear the bridge crew on BRIDGE RD (0/3)',
+        type: 'combat', text: 'Clear the bridge crew on BRIDGE RD (0/3)', x: 0, z: 0, radius: 12, kills: 3,
         lines: [
           { speaker: 'ROOK', text: 'Three of them, at least. Clear the bridge — make it loud, I want the town to hear it.' },
         ],
       },
       {
-        type: 'drive', x: 0, z: 140, radius: 8, text: 'Drive the getaway car down CORAL WAY',
+        type: 'drive', text: 'Drive the getaway car down CORAL WAY', x: 0, z: 140, radius: 8,
         lines: [
           { speaker: 'ROOK', text: 'Bridge is yours. Now take the getaway car down Coral Way — nice and slow, let them see you.' },
         ],
@@ -174,19 +199,19 @@ const MISSION_DEFS = [
     ],
     stages: [
       {
-        type: 'drive', x: 78, z: -140, radius: 8, text: 'Start the run at the east end of PALM BLVD',
+        type: 'drive', text: 'Start the run at the east end of PALM BLVD', x: 78, z: -140, radius: 8,
         lines: [
           { speaker: 'ROOK', text: 'Start at the east end of Palm Blvd. The cops are watching — do not give them a reason.' },
         ],
       },
       {
-        type: 'drive', x: -78, z: -140, radius: 8, text: 'Run PALM BLVD end to end (west)',
+        type: 'drive', text: 'Run PALM BLVD end to end (west)', x: -78, z: -140, radius: 8,
         lines: [
           { speaker: 'ROOK', text: 'All the way west, kid. Do not stop for anybody — not even a red light.' },
         ],
       },
       {
-        type: 'goto', x: 0, z: 90, radius: 6, text: 'Lay low at the BAY ST safehouse',
+        type: 'goto', text: 'Lay low at the BAY ST safehouse', x: 0, z: 90, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Now lay low at the Bay St safehouse till the heat dies down. You did good.' },
         ],
@@ -212,19 +237,19 @@ const MISSION_DEFS = [
     ],
     stages: [
       {
-        type: 'combat', x: 70, z: 90, radius: 12, kills: 4, text: 'Take the corner crew on BAY ST (0/4)',
+        type: 'combat', text: 'Take the corner crew on BAY ST (0/4)', x: 70, z: 90, radius: 12, kills: 4,
         lines: [
           { speaker: 'ROOK', text: 'The corner crew guards that ledger with their lives. Take them down — all four.' },
         ],
       },
       {
-        type: 'collect', x: 108, z: 150, radius: 6, text: 'Grab the ledger at the MARINA DR pier',
+        type: 'collect', text: 'Grab the ledger at the MARINA DR pier', x: 108, z: 150, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'The ledger is in the lockbox on the pier. Grab it and do not stop to count it.' },
         ],
       },
       {
-        type: 'deliver', x: 30, z: -190, radius: 6, text: 'Bring the ledger to Rook on OCEAN AVE',
+        type: 'deliver', text: 'Bring the ledger to Rook on OCEAN AVE', x: 30, z: -190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Bring it to me on Ocean Ave. After tonight, your debt is paid — and this town owes you.' },
         ],
@@ -241,12 +266,11 @@ export function createMissions(opts) {
   for (const def of MISSION_DEFS) defs.set(def.id, def);
 
   // Completed mission ids. Persisted to localStorage (guarded — a
-  // denied store must never break the game); Lane E can also drive
-  // this with loadState()/saveState() if it owns persistence instead.
+  // denied store must never break the game).
   const completed = new Set();
   try {
     const saved = typeof localStorage !== 'undefined'
-      ? JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')
+      ? JSON.parse(localStorage.getItem(COMPLETED_KEY) || 'null')
       : null;
     if (saved && Array.isArray(saved.completed)) {
       for (const id of saved.completed) if (defs.has(id)) completed.add(id);
@@ -254,29 +278,86 @@ export function createMissions(opts) {
   } catch (err) { /* corrupt / denied storage: start fresh */ }
 
   let active = null; // { def, stageIndex, kills, pedKills, collected, startedAt }
-  // Fase 4 (Lane B) checkpoint: where the player was when the CURRENT
-  // stage began ({ stageIndex, x, z }). Recorded on the first update
-  // after a mission starts and again every time a stage advances, so a
-  // death mid-mission respawns the player at the start of the stage
-  // they died in — finished stages stay finished. In-memory only.
-  // (Fase 4, Lane A: the mission + stage + stage progress themselves
-  // DO survive a reload now — resume() above restores them from the
-  // save record; only this checkpoint spot is re-recorded at the load
-  // position instead of being persisted.)
+  // Checkpoint: where the player was when the CURRENT stage began
+  // ({ stageIndex, x, z }). Recorded on the first update after a
+  // mission starts and again every time a stage advances, so a death
+  // mid-mission respawns the player at the start of the stage they
+  // died in — finished stages stay finished. Mirrored to localStorage
+  // (save.js) on every write, so it survives a reload too.
   let checkpoint = null;
+  // Last player position seen by update(), so a checkpoint can be
+  // written even when the caller never hands us a position directly.
+  let lastSeenPos = null;
   let onComplete = typeof options.onComplete === 'function' ? options.onComplete : null;
   let onReward = typeof options.onReward === 'function' ? options.onReward : null;
+  // () => { cash, respect, health } — main.js owns those numbers, so
+  // only it can hand them over for the checkpoint record. Without a
+  // provider the checkpoint still persists (mission + stage +
+  // position), with safe defaults for the economy numbers.
+  let economyProvider = typeof options.economy === 'function' ? options.economy : null;
 
-  function save() {
+  function saveCompleted() {
     try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(SAVE_KEY, JSON.stringify({ completed: [...completed] }));
+        localStorage.setItem(COMPLETED_KEY, JSON.stringify({ completed: [...completed] }));
       }
     } catch (err) { /* storage denied: progress still lives in memory */ }
   }
 
   function cloneDef(def) {
     return JSON.parse(JSON.stringify(def));
+  }
+
+  function economySnapshot() {
+    let snap = { cash: 0, respect: 0, health: 100 };
+    if (typeof economyProvider === 'function') {
+      try {
+        const got = economyProvider() || {};
+        if (Number.isFinite(Number(got.cash))) snap.cash = Math.round(Number(got.cash));
+        if (Number.isFinite(Number(got.respect))) snap.respect = Math.round(Number(got.respect));
+        if (Number.isFinite(Number(got.health))) {
+          snap.health = Math.min(100, Math.max(0, Math.round(Number(got.health))));
+        }
+      } catch (err) { /* a throwing provider must never break missions */ }
+    }
+    return snap;
+  }
+
+  // Write the current stage entry as the persisted checkpoint. The
+  // spot is the in-memory checkpoint when one exists (the stage-entry
+  // position), otherwise the last seen player position, otherwise the
+  // current stage's own target as a last resort. Never throws.
+  function writeCheckpoint() {
+    if (!active) return false;
+    const econ = economySnapshot();
+    const spot = checkpoint || (lastSeenPos ? { x: lastSeenPos.x, z: lastSeenPos.z } : null);
+    const stage = active.def.stages[active.stageIndex];
+    const pos = spot || (stage ? { x: stage.x, z: stage.z } : { x: 0, z: 0 });
+    try {
+      return persistCheckpoint({
+        missionId: active.def.id,
+        stage: active.stageIndex,
+        cash: econ.cash,
+        respect: econ.respect,
+        playerPos: { x: pos.x, z: pos.z },
+        health: econ.health,
+      });
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // Guarded stage moves. The index may only ever:
+  //   - step forward by exactly one (a stage completing), or
+  //   - rewind to the recorded checkpoint stage (a death respawn), or
+  //   - be set once at resume after the range + prerequisite checks.
+  // Anything else — a jump of two stages, a stage past the end, a
+  // rewind to a stage the player never reached — is refused.
+  function isLegalMove(from, to, totalStages) {
+    if (!Number.isInteger(to) || to < 0 || to > totalStages) return false;
+    if (to === from + 1) return true; // advance
+    if (checkpoint && to === checkpoint.stageIndex && to <= from) return true; // respawn rewind
+    return false;
   }
 
   function register(def) {
@@ -300,8 +381,8 @@ export function createMissions(opts) {
         : null,
       stagesTotal: active.def.stages.length,
       kills: active.kills,
-      // Fase 4 (Lane B): ordinary pedestrians killed during this stage
-      // — tracked separately, never counted toward the objective.
+      // Ordinary pedestrians killed during this stage — tracked
+      // separately, never counted toward the objective.
       pedKills: active.pedKills,
       collected: active.collected,
       reward: active.def.reward,
@@ -324,7 +405,7 @@ export function createMissions(opts) {
     return out;
   }
 
-  // Alias Lane E / the M menu can call either name.
+  // Alias the M menu can call either name.
   function listAvailable() {
     return getAvailable();
   }
@@ -378,7 +459,8 @@ export function createMissions(opts) {
       collected: 0,
       startedAt: Date.now(),
     };
-    checkpoint = null; // recorded on the first update(), at the start spot
+    checkpoint = null; // recorded + persisted on the first update(), at the start spot
+    try { clearCheckpoint(); } catch (err) { /* storage denied: ignore */ }
     const mission = getActive();
     showLines(def.intro);
     return { ok: true, reason: null, mission };
@@ -411,86 +493,153 @@ export function createMissions(opts) {
     if (!active) return false;
     active = null;
     checkpoint = null;
+    try { clearCheckpoint(); } catch (err) { /* storage denied: ignore */ }
     return true;
   }
 
-  // Resume a saved in-progress mission at its stage (Fase 4, Lane A):
-  // the save record (save.js, key 'azure-bay-save-v1') carries
-  // { id, stageIndex, kills, collected } and main.js hands it here on
-  // load. The intro is NOT replayed — the player already saw it — and
-  // the HUD objective + beacon pick up from the resumed stage. The
-  // checkpoint is re-recorded on the next update() tick, at the
-  // restored position. Returns { ok, mission, reason } like start();
-  // reason is 'not-found' | 'already-active' | 'already-done' |
-  // 'bad-stage' when ok is false.
-  function resume(state) {
-    if (!state || typeof state.id !== 'string') {
-      return { ok: false, reason: 'not-found', mission: null };
-    }
+  // Shared activation checks for resume() and resumeFromCheckpoint():
+  // the mission must exist, not be done, its prerequisites met, and
+  // the stage inside its range. Returns a failure result or null when
+  // the activation may proceed.
+  function checkActivation(id, stageIndex) {
     if (active) return { ok: false, reason: 'already-active', mission: null };
-    const def = defs.get(state.id);
+    const def = defs.get(id);
     if (!def) return { ok: false, reason: 'not-found', mission: null };
-    if (completed.has(state.id)) return { ok: false, reason: 'already-done', mission: null };
-    const stageIndex = Math.floor(Number(state.stageIndex));
-    if (!Number.isFinite(stageIndex) || stageIndex < 0 || stageIndex >= def.stages.length) {
+    if (completed.has(id)) return { ok: false, reason: 'already-done', mission: null };
+    const stage = Math.floor(Number(stageIndex));
+    if (!Number.isFinite(stage) || stage < 0 || stage >= def.stages.length) {
       return { ok: false, reason: 'bad-stage', mission: null };
     }
     // A mission whose prerequisites are not met is never legitimately
-    // active, so it cannot be resumed (Fase 4, Lane A: the resume
-    // probes called resume({id:'m2'}) on a fresh save and it WRONGLY
-    // activated M2, which then blocked M1 from starting at all).
+    // active, so it cannot be resumed (a resume probe once activated
+    // M2 on a fresh save and wrongly blocked M1 from starting at all).
     // Checked after the stage range so a bad stage reports bad-stage.
     const requires = Array.isArray(def.requires) ? def.requires : [];
-    if (!requires.every((id) => completed.has(id))) {
+    if (!requires.every((r) => completed.has(r))) {
       return { ok: false, reason: 'locked', mission: null };
     }
+    return null;
+  }
+
+  function activateAt(def, stageIndex, kills, collected) {
     const stage = def.stages[stageIndex];
     const clamp = (v, max) => Math.max(0, Math.min(Math.floor(Number(v) || 0), max));
     active = {
       def: cloneDef(def),
       stageIndex,
       kills: stage.type === 'combat'
-        ? clamp(state.kills, Number.isFinite(stage.kills) ? stage.kills : 3)
+        ? clamp(kills, Number.isFinite(stage.kills) ? stage.kills : 3)
         : 0,
       pedKills: 0,
       collected: stage.type === 'collect'
-        ? clamp(state.collected, Number.isFinite(stage.count) ? stage.count : 1)
+        ? clamp(collected, Number.isFinite(stage.count) ? stage.count : 1)
         : 0,
       startedAt: Date.now(),
     };
-    checkpoint = null; // re-recorded on the next update(), at the load spot
+    checkpoint = null; // re-recorded + persisted on the next update(), at the load spot
+    writeCheckpoint();
     return { ok: true, reason: null, mission: getActive() };
   }
 
-  // Fase 4 (Lane B) checkpoint: where the player entered the current
-  // stage, or null when no mission is active. The copy keeps callers
-  // from mutating the stored checkpoint.
+  // Resume a saved in-progress mission at its stage: the save record
+  // (save.js, key 'azure-bay-save-v1') carries { id, stageIndex,
+  // kills, collected } and main.js hands it here on load. The intro is
+  // NOT replayed — the player already saw it — and the HUD objective +
+  // beacon pick up from the resumed stage. The checkpoint is
+  // re-recorded on the next update() tick, at the restored position.
+  // Returns { ok, mission, reason } like start(); reason is
+  // 'not-found' | 'already-active' | 'already-done' | 'bad-stage' |
+  // 'locked' when ok is false.
+  function resume(state) {
+    if (!state || typeof state.id !== 'string') {
+      return { ok: false, reason: 'not-found', mission: null };
+    }
+    const refusal = checkActivation(state.id, state.stageIndex);
+    if (refusal) return refusal;
+    const def = defs.get(state.id);
+    return activateAt(def, Math.floor(Number(state.stageIndex)), state.kills, state.collected);
+  }
+
+  // Resume from the persisted checkpoint alone (no full save needed):
+  // reads 'azure-bay-checkpoint-v1' and continues the mission at the
+  // stage it records, with that stage's progress reset — the path a
+  // reload-after-death takes when the full save is older than the
+  // checkpoint. Same failure reasons as resume(), plus
+  // 'no-checkpoint' when nothing is stored.
+  function resumeFromCheckpoint() {
+    let stored = null;
+    try {
+      stored = readCheckpoint();
+    } catch (err) {
+      stored = null;
+    }
+    if (!stored || typeof stored.missionId !== 'string' || !stored.missionId) {
+      return { ok: false, reason: 'no-checkpoint', mission: null };
+    }
+    const refusal = checkActivation(stored.missionId, stored.stage);
+    if (refusal) return refusal;
+    const def = defs.get(stored.missionId);
+    lastSeenPos = stored.playerPos ? { x: stored.playerPos.x, z: stored.playerPos.z } : null;
+    return activateAt(def, Math.floor(Number(stored.stage)), 0, 0);
+  }
+
+  // Checkpoint: where the player entered the current stage, or null
+  // when no mission is active. The copy keeps callers from mutating
+  // the stored checkpoint.
   function getCheckpoint() {
     if (!active || !checkpoint) return null;
     return { missionId: active.def.id, stageIndex: checkpoint.stageIndex, x: checkpoint.x, z: checkpoint.z };
   }
 
-  // Fase 4 (Lane B) respawn: rewind the active mission to the start of
-  // the stage the player died in. The stage index does NOT move back —
-  // stages already finished stay finished, and rewards already banked
-  // (paid only on mission completion) are untouched — only the current
-  // stage's progress (target kills, civilian kills, collected items)
-  // resets to zero. Returns the respawn spot, or null when there is no
-  // active mission / checkpoint to respawn to.
+  // Respawn: rewind the active mission to the start of the stage the
+  // player died in. The stage index does NOT move back past the
+  // checkpoint — stages already finished stay finished, and rewards
+  // already banked (paid only on mission completion) are untouched —
+  // only the current stage's progress (target kills, civilian kills,
+  // collected items) resets to zero. When the in-memory checkpoint is
+  // gone (a reload happened after the death), the persisted checkpoint
+  // is read back and used instead. Returns the respawn spot, or null
+  // when there is no active mission / checkpoint to respawn to.
   function respawnToCheckpoint() {
-    if (!active || !checkpoint) return null;
-    active.stageIndex = checkpoint.stageIndex;
+    if (!active) return null;
+    let spot = checkpoint;
+    if (!spot) {
+      let stored = null;
+      try {
+        stored = readCheckpoint();
+      } catch (err) {
+        stored = null;
+      }
+      if (stored && stored.missionId === active.def.id
+        && Number.isInteger(stored.stage)
+        && stored.stage >= 0 && stored.stage < active.def.stages.length
+        && stored.playerPos) {
+        spot = { stageIndex: stored.stage, x: stored.playerPos.x, z: stored.playerPos.z };
+      }
+    }
+    if (!spot) return null;
+    // Guarded rewind only: the checkpoint stage must be at or behind
+    // the current stage — a stored record can never push the player
+    // forward past a stage they have not finished.
+    if (!isLegalMove(active.stageIndex, spot.stageIndex, active.def.stages.length)) {
+      return null;
+    }
+    active.stageIndex = spot.stageIndex;
     active.kills = 0;
     active.pedKills = 0;
     active.collected = 0;
+    checkpoint = { stageIndex: spot.stageIndex, x: spot.x, z: spot.z };
+    writeCheckpoint();
     return { missionId: active.def.id, stageIndex: checkpoint.stageIndex, x: checkpoint.x, z: checkpoint.z };
   }
 
   function reset() {
     active = null;
     checkpoint = null;
+    lastSeenPos = null;
     completed.clear();
-    save();
+    saveCompleted();
+    try { clearCheckpoint(); } catch (err) { /* storage denied: ignore */ }
   }
 
   function currentStage() {
@@ -499,7 +648,14 @@ export function createMissions(opts) {
   }
 
   function advanceStage() {
-    active.stageIndex += 1;
+    const next = active.stageIndex + 1;
+    // Guarded +1 step only: the next index must be a real stage or
+    // exactly the end (mission complete). Anything else is a bug, and
+    // refusing it beats silently landing on an undefined stage.
+    if (!isLegalMove(active.stageIndex, next, active.def.stages.length)) {
+      return null;
+    }
+    active.stageIndex = next;
     active.kills = 0;
     active.pedKills = 0;
     active.collected = 0;
@@ -512,7 +668,7 @@ export function createMissions(opts) {
   function finishMission() {
     const def = active.def;
     completed.add(def.id);
-    save();
+    saveCompleted();
     const done = {
       id: def.id,
       chapter: def.chapter,
@@ -522,17 +678,18 @@ export function createMissions(opts) {
     };
     active = null;
     checkpoint = null;
+    try { clearCheckpoint(); } catch (err) { /* storage denied: ignore */ }
     if (typeof onReward === 'function') onReward(done);
     if (typeof onComplete === 'function') onComplete(done);
     showLines(def.outro);
     return done;
   }
 
-  // Feed one kill into the active combat stage (Lane E calls this from
+  // Feed one kill into the active combat stage (main.js calls this from
   // combatResult.kills, or passes the same kills through update's ctx).
-  // Fase 4 (Lane B): only MISSION TARGETS count toward the objective.
-  // An explicit `isTarget` flag on the kill event wins (combat.js tags
-  // officer kills true, ordinary-ped kills false); without the flag,
+  // Only MISSION TARGETS count toward the objective. An explicit
+  // `isTarget` flag on the kill event wins (combat.js tags officer
+  // kills true, ordinary-ped kills false); without the flag,
   // `type === 'officer'` counts and anything else does not. A civilian
   // kill is tracked separately in pedKills — visible in getActive() —
   // and never advances the objective. Returns true when the kill
@@ -553,20 +710,25 @@ export function createMissions(opts) {
     return false;
   }
 
-  // Per-frame tick. ctx is optional and Lane-E supplied:
+  // Per-frame tick. ctx is optional and main.js supplied:
   //   ctx.kills   — array of kill events this frame (combatResult.kills)
   //   ctx.inCar   — override for the driving check (default: player.isInCar)
-  // Returns { completed: <mission|null> } so Lane E can apply the reward
-  // the same frame the outro dialog opens.
+  // Returns { completed: <mission|null> } so main.js can apply the
+  // reward the same frame the outro dialog opens.
   function update(dt, player, ctx) {
     void dt;
     if (!active || !player || !player.position) return { completed: null };
     const context = ctx || {};
-    // Fase 4 (Lane B) checkpoint: the spot where the player entered the
-    // current stage. Recorded on the first tick of a fresh mission (the
-    // start spot) and refreshed below every time a stage advances.
+    if (Number.isFinite(player.position.x) && Number.isFinite(player.position.z)) {
+      lastSeenPos = { x: player.position.x, z: player.position.z };
+    }
+    // Checkpoint: the spot where the player entered the current stage.
+    // Recorded on the first tick of a fresh mission (the start spot)
+    // and refreshed below every time a stage advances — and persisted
+    // to localStorage each time, so a reload keeps it.
     if (!checkpoint) {
       checkpoint = { stageIndex: active.stageIndex, x: player.position.x, z: player.position.z };
+      writeCheckpoint();
     }
     if (Array.isArray(context.kills)) {
       for (const kill of context.kills) noteKill(kill);
@@ -599,19 +761,21 @@ export function createMissions(opts) {
 
     if (!done) return { completed: null };
     const finished = advanceStage();
-    // Fase 4 (Lane B): a new stage just began where the player stands
-    // now — that spot is the checkpoint a death in this stage returns
-    // to. (When the mission finished, active is null and there is no
-    // checkpoint to record.)
+    // A new stage just began where the player stands now — that spot
+    // is the checkpoint a death in this stage returns to, and it is
+    // persisted immediately. (When the mission finished, active is
+    // null and there is no checkpoint to record — finishMission already
+    // cleared the stored one.)
     if (!finished && active) {
       checkpoint = { stageIndex: active.stageIndex, x: px, z: pz };
+      writeCheckpoint();
     }
     return { completed: finished };
   }
 
   // HUD objective line for the active mission, with live progress for
   // combat/collect stages ("(2/3)"). Null when no mission is active,
-  // so Lane E can fall back to its default objective text.
+  // so main.js can fall back to its default objective text.
   function getHUDText() {
     if (!active) return null;
     const stage = currentStage();
@@ -628,7 +792,7 @@ export function createMissions(opts) {
     return `${active.def.id.toUpperCase()} — ${active.def.name}: ${text}`;
   }
 
-  // Markers for the 3D scene (Lane C) and the minimap (Lane E):
+  // Markers for the 3D scene and the minimap:
   //   active mission  → current stage target { kind: 'objective' }
   //   available ones  → start marker at def.start { kind: 'mission' }
   // kind 'deliver' marks deliver/collect targets so the renderer can
@@ -673,6 +837,7 @@ export function createMissions(opts) {
     update,
     noteKill,
     resume,
+    resumeFromCheckpoint,
     getCheckpoint,
     respawnToCheckpoint,
     getHUDText,
@@ -681,11 +846,13 @@ export function createMissions(opts) {
     reset,
     setOnComplete(cb) { onComplete = typeof cb === 'function' ? cb : null; },
     setOnReward(cb) { onReward = typeof cb === 'function' ? cb : null; },
+    /** Register () => { cash, respect, health } so checkpoints persist live economy numbers. */
+    setEconomyProvider(fn) { economyProvider = typeof fn === 'function' ? fn : null; },
   };
   return api;
 }
 
-// Default singleton, exposed for Lane B/C/D/E and the console.
+// Default singleton, exposed for the other lanes and the console.
 export const Missions = createMissions();
 if (typeof window !== 'undefined') {
   window.Missions = Missions;

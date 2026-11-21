@@ -1,46 +1,119 @@
-// save.js — AZURE BAY save / load (Lane D, Fase 3).
-// Persists progress to localStorage so a session survives a reload.
-// No network, no file writes — the browser's localStorage only.
+// save.js — AZURE BAY persistence (rewrite round 2).
+// Everything the game remembers across a reload lives in localStorage:
+// one full-game record under SAVE_KEY, plus one lightweight mission
+// checkpoint under CHECKPOINT_KEY that missions.js reads back after a
+// death mid-mission. No network, no file writes, browser storage only.
 //
-// Schema (v1), key 'azure-bay-save-v1':
-//   {
-//     version: 1,
-//     savedAt: '<ISO timestamp>',
-//     missions: {
-//       completed: ['<mission id>', ...],          // finished mission ids
-//       active: { id, title, stage, stages,       // in-progress mission
-//                 kills, collected } | null        // progress banked in the stage
-//     },
-//     cash: <number>, health: <number 0-100>, respect: <number>,
-//     weapons: {
-//       current: <index 0 fists | 1 pistol | 2 SMG>,
-//       mag: [null, <pistol mag>, <smg mag>],      // null = infinite (fists)
-//       reserve: [null, <pistol reserve>, <smg reserve>]
-//     },
-//     position: { x, z, heading, inCar: <bool> }
-//   }
+// Full-save record (v1):
+//   { version, savedAt, missions: { completed: [id…], active: {…} | null },
+//     cash, health, respect,
+//     weapons: { current, mag: [null, n, n], reserve: [null, n, n] },
+//     position: { x, z, heading, inCar } }
 //
-// Contract (Lane E wires this into main.js):
-//   window.Save = { save(), load(), hasSave(), clear() }
-//   save() with no argument snapshots the live game. The snapshot source is
-//   a provider Lane E registers with Save.setProvider(fn): main.js owns
-//   health / cash / missions / respect as module locals, so only it can hand
-//   them over. Without a provider, save() reads what is reachable — the
-//   player position + weapon state off window.__azure — and fills the rest
-//   with fresh-game defaults. Save.setApplier(fn) is the matching hook for
-//   load(): without it, apply() restores position + weapon index directly
-//   and returns the full record so Lane E can apply the rest (health, cash,
-//   ammo counts — combat.js exposes mag/reserve as getters only, so ammo
-//   restore needs a combat setter or the Lane E applier).
+// Checkpoint record (v1, key 'azure-bay-checkpoint-v1'):
+//   { missionId, stage, cash, respect, playerPos: { x, z }, health }
+// A checkpoint is written whenever a mission stage advances and cleared
+// when the mission ends, so a respawn never lands the player in a mission
+// that already finished.
 //
-// After every successful save, a 'azure-save' CustomEvent fires on window
-// (detail: the saved record) so the HUD can flash its SAVED indicator —
-// HudFase3.savedFlash() listens for it.
+// Wiring (main.js): Save.setProvider(() => snapshot) supplies the live
+// numbers main.js owns (health / cash / respect / missions); without a
+// provider, save() snapshots whatever window.__azure exposes and fills
+// the rest with fresh-game defaults. Save.setApplier(fn) is the matching
+// load hook; without it, apply() restores position + weapon directly and
+// hands the record back so the caller can finish the job.
+// Every successful save fires 'azure-save' on window (detail: the record)
+// so the HUD can flash its SAVED indicator.
 
 export const SAVE_KEY = 'azure-bay-save-v1';
 export const SAVE_VERSION = 1;
+export const CHECKPOINT_KEY = 'azure-bay-checkpoint-v1';
 
-function defaultSnapshot() {
+// ---------------------------------------------------------------------------
+// Checkpoints — the small record missions.js imports.
+// ---------------------------------------------------------------------------
+
+function storageOrNull() {
+  try {
+    return window.localStorage;
+  } catch (err) {
+    return null;
+  }
+}
+
+/** Store a mission checkpoint. `cp` is { missionId, stage, cash, respect,
+ *  playerPos: { x, z }, health }. Returns true when it stuck. */
+export function persistCheckpoint(cp) {
+  const store = storageOrNull();
+  if (!store || !cp || typeof cp !== 'object') return false;
+  const record = {
+    missionId: typeof cp.missionId === 'string' ? cp.missionId : '',
+    stage: Math.max(0, Math.round(Number(cp.stage) || 0)),
+    cash: Math.round(Number(cp.cash) || 0),
+    respect: Math.round(Number(cp.respect) || 0),
+    playerPos: {
+      x: Number(cp.playerPos && cp.playerPos.x) || 0,
+      z: Number(cp.playerPos && cp.playerPos.z) || 0,
+    },
+    health: Math.min(100, Math.max(0, Math.round(Number(cp.health) || 0))),
+  };
+  try {
+    store.setItem(CHECKPOINT_KEY, JSON.stringify(record));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/** Read the stored checkpoint back, or null when there is none / it is
+ *  corrupt. Never throws. */
+export function readCheckpoint() {
+  const store = storageOrNull();
+  if (!store) return null;
+  let raw = null;
+  try {
+    raw = store.getItem(CHECKPOINT_KEY);
+  } catch (err) {
+    return null;
+  }
+  if (!raw) return null;
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.missionId !== 'string') return null;
+  return {
+    missionId: parsed.missionId,
+    stage: Math.max(0, Math.round(Number(parsed.stage) || 0)),
+    cash: Math.round(Number(parsed.cash) || 0),
+    respect: Math.round(Number(parsed.respect) || 0),
+    playerPos: {
+      x: Number(parsed.playerPos && parsed.playerPos.x) || 0,
+      z: Number(parsed.playerPos && parsed.playerPos.z) || 0,
+    },
+    health: Math.min(100, Math.max(0, Math.round(Number(parsed.health) || 0))),
+  };
+}
+
+/** Drop the stored checkpoint (mission finished / abandoned). */
+export function clearCheckpoint() {
+  const store = storageOrNull();
+  if (!store) return false;
+  try {
+    store.removeItem(CHECKPOINT_KEY);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Full save — snapshot, validation, read/write.
+// ---------------------------------------------------------------------------
+
+function freshRecord() {
   return {
     version: SAVE_VERSION,
     savedAt: new Date().toISOString(),
@@ -53,10 +126,10 @@ function defaultSnapshot() {
   };
 }
 
-// Best-effort snapshot from what the game exposes publicly. Position and
-// weapon state come from window.__azure; everything else keeps defaults.
-function snapshotFromGame() {
-  const snap = defaultSnapshot();
+// Snapshot from the public game surface when no provider is registered:
+// position + weapon state off window.__azure, defaults for the rest.
+function snapshotFromLiveGame() {
+  const snap = freshRecord();
   const azure = typeof window !== 'undefined' ? window.__azure : null;
   if (!azure) return snap;
   const player = azure.player;
@@ -71,22 +144,22 @@ function snapshotFromGame() {
   const combat = azure.combat;
   if (combat) {
     if (Number.isInteger(combat.current)) snap.weapons.current = combat.current;
+    const slot = snap.weapons.current;
     const mag = Number(combat.mag);
     const reserve = Number(combat.reserve);
-    const idx = snap.weapons.current;
-    if (Number.isFinite(mag)) snap.weapons.mag[idx] = mag;
-    if (Number.isFinite(reserve)) snap.weapons.reserve[idx] = reserve;
+    if (Number.isFinite(mag)) snap.weapons.mag[slot] = mag;
+    if (Number.isFinite(reserve)) snap.weapons.reserve[slot] = reserve;
   }
   return snap;
 }
 
-// Validate + normalise a parsed record. Returns the record, or null when it
-// is not a save we recognise (wrong version, wrong shape, corrupt JSON).
+// Validate + normalise a parsed record. Returns a clean record, or null
+// when it is not a save we recognise (wrong version, wrong shape, corrupt).
 export function validateSave(data) {
   if (!data || typeof data !== 'object') return null;
   if (data.version !== SAVE_VERSION) return null;
   if (typeof data.savedAt !== 'string') return null;
-  const snap = defaultSnapshot();
+  const snap = freshRecord();
   snap.savedAt = data.savedAt;
   if (data.missions && typeof data.missions === 'object') {
     if (Array.isArray(data.missions.completed)) {
@@ -99,9 +172,8 @@ export function validateSave(data) {
         title: typeof active.title === 'string' ? active.title : active.id,
         stage: Math.max(0, Math.round(Number(active.stage) || 0)),
         stages: Math.max(1, Math.round(Number(active.stages) || 1)),
-        // Fase 4 (Lane A): progress inside the current stage, so a
-        // reload resumes the mission mid-stage instead of restarting
-        // it — combat kills and collected items already banked.
+        // Progress banked inside the current stage, so a reload resumes
+        // mid-stage instead of restarting it: kills + collected items.
         kills: Math.max(0, Math.round(Number(active.kills) || 0)),
         collected: Math.max(0, Math.round(Number(active.collected) || 0)),
       };
@@ -113,13 +185,14 @@ export function validateSave(data) {
   }
   if (Number.isFinite(Number(data.respect))) snap.respect = Math.round(Number(data.respect));
   if (data.weapons && typeof data.weapons === 'object') {
-    if (Number.isInteger(data.weapons.current)
-      && data.weapons.current >= 0 && data.weapons.current <= 2) {
-      snap.weapons.current = data.weapons.current;
+    const current = data.weapons.current;
+    if (Number.isInteger(current) && current >= 0 && current <= 2) {
+      snap.weapons.current = current;
     }
     for (const field of ['mag', 'reserve']) {
-      if (Array.isArray(data.weapons[field]) && data.weapons[field].length === 3) {
-        snap.weapons[field] = data.weapons[field].map((v) => (
+      const arr = data.weapons[field];
+      if (Array.isArray(arr) && arr.length === 3) {
+        snap.weapons[field] = arr.map((v) => (
           v === null ? null : (Number.isFinite(Number(v)) ? Math.round(Number(v)) : null)
         ));
       }
@@ -140,11 +213,11 @@ export function validateSave(data) {
 }
 
 export function createSave() {
-  let provider = null; // () => snapshot object (Lane E: main.js locals)
-  let applier = null;  // (record) => void (Lane E: apply health/cash/ammo)
-  let lastSavedAt = null;
+  let snapshotFn = null; // () => snapshot object (main.js locals)
+  let applyFn = null;    // (record) => void (main.js: health/cash/ammo)
+  let savedAtStamp = null;
 
-  function readRaw() {
+  function fetchRaw() {
     try {
       return window.localStorage.getItem(SAVE_KEY);
     } catch (err) {
@@ -155,18 +228,16 @@ export function createSave() {
   function save(explicit) {
     const base = explicit && typeof explicit === 'object'
       ? explicit
-      : (typeof provider === 'function' ? provider() : snapshotFromGame());
-    const record = validateSave({ ...defaultSnapshot(), ...base, version: SAVE_VERSION });
+      : (typeof snapshotFn === 'function' ? snapshotFn() : snapshotFromLiveGame());
+    const record = validateSave({ ...freshRecord(), ...base, version: SAVE_VERSION });
     if (!record) return false;
     record.savedAt = new Date().toISOString();
-    let raw;
     try {
-      raw = JSON.stringify(record);
-      window.localStorage.setItem(SAVE_KEY, raw);
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(record));
     } catch (err) {
       return false; // quota / blocked storage: report failure, never throw
     }
-    lastSavedAt = record.savedAt;
+    savedAtStamp = record.savedAt;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('azure-save', { detail: record }));
     }
@@ -174,7 +245,7 @@ export function createSave() {
   }
 
   function load() {
-    const raw = readRaw();
+    const raw = fetchRaw();
     if (!raw) return null;
     let parsed = null;
     try {
@@ -195,18 +266,19 @@ export function createSave() {
     } catch (err) {
       return false;
     }
-    lastSavedAt = null;
+    savedAtStamp = null;
     return true;
   }
 
-  // Apply a loaded record to the live game. Without an applier only the
-  // parts reachable from here are restored (position + weapon index);
-  // returns the record either way so the caller can finish the job.
+  // Apply a loaded record to the live game. With an applier registered,
+  // it does the whole job; without one, only the parts reachable from
+  // here are restored (position + weapon index) and the record is
+  // returned so the caller can finish it.
   function apply(record) {
     const data = record || load();
     if (!data) return null;
-    if (typeof applier === 'function') {
-      applier(data);
+    if (typeof applyFn === 'function') {
+      applyFn(data);
       return data;
     }
     const azure = typeof window !== 'undefined' ? window.__azure : null;
@@ -231,16 +303,20 @@ export function createSave() {
     clear,
     apply,
     validateSave,
-    /** Lane E: register () => snapshot — the only way to capture health/cash/missions/respect. */
+    persistCheckpoint,
+    readCheckpoint,
+    clearCheckpoint,
+    /** main.js: register () => snapshot — the only way to capture health/cash/missions/respect. */
     setProvider(fn) {
-      if (typeof fn === 'function') provider = fn;
+      if (typeof fn === 'function') snapshotFn = fn;
     },
-    /** Lane E: register (record) => void — applies health/cash/ammo on load. */
+    /** main.js: register (record) => void — applies health/cash/ammo on load. */
     setApplier(fn) {
-      if (typeof fn === 'function') applier = fn;
+      if (typeof fn === 'function') applyFn = fn;
     },
-    get lastSavedAt() { return lastSavedAt; },
+    get lastSavedAt() { return savedAtStamp; },
     get key() { return SAVE_KEY; },
+    get checkpointKey() { return CHECKPOINT_KEY; },
   };
   return api;
 }

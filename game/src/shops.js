@@ -1,8 +1,8 @@
-// shops.js — AZURE BAY weapon shop + garage (Lane C, Fase 3).
+// shops.js — AZURE BAY weapon shop + garage (rewrite round 2).
 // Two street-front shops the player walks up to and opens with E:
 //   AZURE ARMORY  — buy the pistol / SMG, ammo and medkits with $
 //   BAY CUSTOMS   — repair the car and buy armor / engine upgrades
-// Standalone module: Lane E wires it with bind() (cash / health / combat /
+// Standalone module: main.js wires it with bind() (cash / health / combat /
 // car accessors) and init() (3D markers), and calls nearest() / tryInteract()
 // from the E-key path. No network, no Node/Deno APIs — browser ES modules only.
 //
@@ -18,26 +18,35 @@
 //   }
 //
 // Economy (start $500, no mission payouts exist yet — see the gap note in
-// buy()): pistol $250 is one early purchase, SMG $600 needs mission money.
-// Ammo is sold as reserve credits: combat.js has no addAmmo hook yet, so a
-// bought pack is banked in ammoCredits and lands in the gun the moment
-// Lane E adds a 3-line combat.addAmmo — applyAmmoCredits() does it
-// automatically when the hook appears. Garage upgrades are stored on the
-// car object itself (car.armorLevel / car.engineLevel / car.condition) so
-// police damage and car tuning can read them later.
+// buyWeapon()): pistol $250 is one early purchase, SMG $600 needs mission
+// money. Ammo is sold as reserve credits: combat.js has no addAmmo hook
+// yet, so a bought pack is banked in ammoCredits and lands in the gun the
+// moment main.js adds a 3-line combat.addAmmo — applyAmmoCredits() does
+// it automatically when the hook appears. Garage upgrades are stored on
+// the car object itself (car.armorLevel / car.engineLevel / car.condition)
+// so police damage and car tuning can read them later.
+//
+// Round-2 fix — one consistent shop state: the overlay is a single
+// instance with one kind at a time (openOverlay() is a no-op when the
+// same shop is already open, and switching shops re-renders instead of
+// stacking a second overlay), purchases re-render from the persisted
+// store so the list can never show stale ownership, and a purchase that
+// fails (not enough cash, already owned, wrong level) leaves cash and
+// store untouched — spend() is the single choke point and it checks
+// before it deducts.
 
 import * as THREE from 'three';
 
-const NEAR_RADIUS = 6; // metres
+const TRIGGER_DIST = 6; // metres
 const STORE_KEY = 'azurebay.shops.v1';
 
-const WEAPON_SHOP = {
+const ARMORY = {
   name: 'AZURE ARMORY',
   subtitle: 'WEAPONS & AMMO',
   // PALM BLVD (north-island cross street, z = -140), east end.
   x: 45, z: -140,
 };
-const GARAGE = {
+const CUSTOMS = {
   name: 'BAY CUSTOMS',
   subtitle: 'GARAGE — REPAIR & UPGRADES',
   // MARINA DR (south-island cross street, z = 140), west end.
@@ -62,97 +71,98 @@ export const GARAGE_UPGRADES = [
   { id: 'engine-3', kind: 'engine', level: 3, name: 'ENGINE TUNE III', price: 1000, desc: 'Race build. Needs Tune II.' },
 ];
 
-const WEAPON_INDEX = { fists: 0, pistol: 1, smg: 2 };
+const WEAPON_SLOT = { fists: 0, pistol: 1, smg: 2 };
 
-let deps = {};
+let hooks = {};
 let sceneRef = null;
-let overlayEl = null;
+let overlayNode = null;
 let overlayKind = null; // 'weapon' | 'garage' | null
-let toastEl = null;
-let pulse = 0;
-const beacons = [];
+let toastNode = null;
+let toastTimer = null;
+let pulseClock = 0;
+const beaconList = [];
 
 // ---- persisted state ----------------------------------------------------------
 // Owned guns, banked ammo credits and per-car garage levels survive reload.
-const store = {
+const vault = {
   owned: { fists: true, pistol: false, smg: false },
   ammoCredits: { pistol: 0, smg: 0 },
   garage: { armor: 0, engine: 0, condition: 100 },
 };
 
-function loadStore() {
+function loadVault() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    if (data.owned) store.owned = { ...store.owned, ...data.owned };
-    if (data.ammoCredits) store.ammoCredits = { ...store.ammoCredits, ...data.ammoCredits };
-    if (data.garage) store.garage = { ...store.garage, ...data.garage };
+    if (data.owned) vault.owned = { ...vault.owned, ...data.owned };
+    if (data.ammoCredits) vault.ammoCredits = { ...vault.ammoCredits, ...data.ammoCredits };
+    if (data.garage) vault.garage = { ...vault.garage, ...data.garage };
   } catch (err) { /* a corrupt save just means a fresh shop state */ }
 }
 
-function saveStore() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (err) { /* storage may be unavailable */ }
+function persistVault() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(vault)); } catch (err) { /* storage may be unavailable */ }
 }
 
-loadStore();
+loadVault();
 
-function showToast(msg) {
-  if (typeof deps.notify === 'function') {
-    deps.notify(msg);
+function flashToast(msg) {
+  if (typeof hooks.notify === 'function') {
+    hooks.notify(msg);
     return;
   }
-  if (!toastEl) {
-    toastEl = document.createElement('div');
-    toastEl.id = 'shops-toast';
-    Object.assign(toastEl.style, {
+  if (!toastNode) {
+    toastNode = document.createElement('div');
+    toastNode.id = 'shops-toast';
+    Object.assign(toastNode.style, {
       position: 'fixed', left: '50%', bottom: '110px', transform: 'translateX(-50%)',
       background: 'rgba(20, 12, 4, 0.92)', color: '#fde68a',
       border: '2px solid #f59e0b', borderRadius: '10px', padding: '12px 20px',
       font: 'bold 17px system-ui, sans-serif', zIndex: 60, display: 'none',
       boxShadow: '0 4px 24px rgba(0,0,0,0.5)', textAlign: 'center', maxWidth: '90vw',
     });
-    document.body.appendChild(toastEl);
+    document.body.appendChild(toastNode);
   }
-  toastEl.textContent = msg;
-  toastEl.style.display = 'block';
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => { toastEl.style.display = 'none'; }, 3200);
+  toastNode.textContent = msg;
+  toastNode.style.display = 'block';
+  if (toastTimer !== null) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastNode.style.display = 'none'; toastTimer = null; }, 3200);
 }
 
-function getCash() {
-  return typeof deps.getCash === 'function' ? deps.getCash() : null;
+function cashNow() {
+  return typeof hooks.getCash === 'function' ? hooks.getCash() : null;
 }
 
-function getCar() {
-  if (typeof deps.getCar === 'function') return deps.getCar();
-  return deps.car || null;
+function carNow() {
+  if (typeof hooks.getCar === 'function') return hooks.getCar();
+  return hooks.car || null;
 }
 
 /** Push the stored garage levels onto the live car object so other systems
  *  (police damage, tuning) can read them without knowing about this module. */
 function syncCarFields(car) {
   if (!car) return;
-  car.armorLevel = store.garage.armor;
-  car.engineLevel = store.garage.engine;
-  car.condition = store.garage.condition;
+  car.armorLevel = vault.garage.armor;
+  car.engineLevel = vault.garage.engine;
+  car.condition = vault.garage.condition;
 }
 
 /** Garage levels for a car ({ armor, engine, condition }). */
 function garageStateFor(car) {
-  const c = car || getCar();
+  const c = car || carNow();
   if (c) syncCarFields(c);
-  return { ...store.garage };
+  return { ...vault.garage };
 }
 
-function repairPrice() {
-  const missing = Math.max(0, 100 - store.garage.condition);
+function currentRepairPrice() {
+  const missing = Math.max(0, 100 - vault.garage.condition);
   if (missing <= 0) return 0;
   return Math.min(150, 30 + missing * 2);
 }
 
 // ---- 3D markers -----------------------------------------------------------------
-function makeLabelSprite(lines, accent) {
+function buildSignSprite(lines, accent) {
   const fontPx = 64;
   const pad = 26;
   const canvas = document.createElement('canvas');
@@ -181,30 +191,30 @@ function makeLabelSprite(lines, accent) {
 }
 
 /** Street-front shop box: coloured walls, a lit sign band, a beacon column. */
-function buildShopMarker(shop, wallColor, accentColor) {
+function buildStorefront(shop, wallColor, accentColor) {
   const group = new THREE.Group();
   const groundY = 1.5;
-  const wall = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.85 });
-  const roof = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x0e7490, roughness: 0.25, metalness: 0.5 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.85 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.9 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x0e7490, roughness: 0.25, metalness: 0.5 });
   const signMat = new THREE.MeshStandardMaterial({
     color: accentColor, roughness: 0.5,
     emissive: accentColor, emissiveIntensity: 0.55,
   });
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(10, 4.6, 7), wall);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(10, 4.6, 7), wallMat);
   body.position.y = groundY + 2.3;
   body.castShadow = true;
   group.add(body);
-  const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.35, 7.6), roof);
+  const roofSlab = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.35, 7.6), roofMat);
   roofSlab.position.y = groundY + 4.75;
   roofSlab.castShadow = true;
   group.add(roofSlab);
   // Shopfront window on the road face (+z for the armory, -z for customs:
   // both face their street; the group is rotated below when needed).
-  const windowPane = new THREE.Mesh(new THREE.BoxGeometry(6.5, 2.2, 0.15), glass);
-  windowPane.position.set(0, groundY + 1.7, 3.55);
-  group.add(windowPane);
+  const pane = new THREE.Mesh(new THREE.BoxGeometry(6.5, 2.2, 0.15), glassMat);
+  pane.position.set(0, groundY + 1.7, 3.55);
+  group.add(pane);
   const sign = new THREE.Mesh(new THREE.BoxGeometry(7.5, 1.1, 0.15), signMat);
   sign.position.set(0, groundY + 4.0, 3.55);
   group.add(sign);
@@ -219,9 +229,9 @@ function buildShopMarker(shop, wallColor, accentColor) {
   const light = new THREE.PointLight(accentColor, 30, 26, 1.6);
   light.position.set(0, groundY + 5, 0);
   group.add(light);
-  beacons.push({ beam, light });
+  beaconList.push({ beam, light });
 
-  const label = makeLabelSprite([
+  const label = buildSignSprite([
     { text: shop.name },
     { text: `— ${shop.subtitle} —`, small: true, color: '#fde68a' },
   ], `#${accentColor.toString(16).padStart(6, '0')}`);
@@ -233,14 +243,14 @@ function buildShopMarker(shop, wallColor, accentColor) {
 }
 
 // ---- shop overlay -----------------------------------------------------------------
-function buildOverlay() {
-  overlayEl = document.createElement('div');
-  overlayEl.id = 'shops-overlay';
-  Object.assign(overlayEl.style, {
+function buildOverlayDom() {
+  overlayNode = document.createElement('div');
+  overlayNode.id = 'shops-overlay';
+  Object.assign(overlayNode.style, {
     position: 'fixed', inset: '0', display: 'none', alignItems: 'center',
     justifyContent: 'center', background: 'rgba(8, 6, 2, 0.72)', zIndex: 55,
   });
-  overlayEl.innerHTML = `
+  overlayNode.innerHTML = `
     <div style="width:min(600px,94vw);max-height:88vh;overflow:auto;background:#1c1206;
       border:3px solid #f59e0b;border-radius:14px;padding:22px 24px;color:#fef3c7;
       font-family:system-ui,sans-serif;box-shadow:0 12px 48px rgba(0,0,0,0.65)">
@@ -255,26 +265,26 @@ function buildOverlay() {
       </div>
       <div id="shops-hint" style="font-size:12px;color:#fcd34d;margin-top:10px"></div>
     </div>`;
-  document.body.appendChild(overlayEl);
-  overlayEl.querySelector('#shops-close').addEventListener('click', closeOverlay);
-  overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) closeOverlay(); });
+  document.body.appendChild(overlayNode);
+  overlayNode.querySelector('#shops-close').addEventListener('click', closeOverlay);
+  overlayNode.addEventListener('click', (e) => { if (e.target === overlayNode) closeOverlay(); });
   document.addEventListener('keydown', (e) => {
     if (!overlayKind) return;
     if (e.code === 'Escape') { closeOverlay(); return; }
     const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'].indexOf(e.code);
     if (n >= 0) {
-      const rows = overlayEl.querySelectorAll('#shops-list button');
+      const rows = overlayNode.querySelectorAll('#shops-list button');
       if (rows[n]) rows[n].click();
     }
   });
 }
 
 function garageRows() {
-  const car = getCar();
+  const car = carNow();
   const state = garageStateFor(car);
   return GARAGE_UPGRADES.map((u) => {
     if (u.kind === 'repair') {
-      const price = repairPrice();
+      const price = currentRepairPrice();
       return { ...u, price, stateText: state.condition >= 100 ? 'CONDITION 100%' : `CONDITION ${state.condition}%`, disabled: state.condition >= 100 };
     }
     if (u.kind === 'armor' || u.kind === 'engine') {
@@ -289,35 +299,39 @@ function garageRows() {
   });
 }
 
+function styleRow(row, { clickable, dimmed }) {
+  Object.assign(row.style, {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
+    padding: '12px 14px', borderRadius: '9px', cursor: clickable ? 'pointer' : 'not-allowed',
+    border: '2px solid #78350f', background: '#2a1a05', color: '#fef3c7',
+    font: '16px system-ui, sans-serif', textAlign: 'left', width: '100%',
+    opacity: dimmed ? 0.55 : 1,
+  });
+}
+
 function renderOverlay() {
-  if (!overlayEl) buildOverlay();
+  if (!overlayNode) buildOverlayDom();
   const isWeapon = overlayKind === 'weapon';
-  const title = overlayEl.querySelector('#shops-title');
-  const sub = overlayEl.querySelector('#shops-sub');
-  const cashEl = overlayEl.querySelector('#shops-cash');
-  const hint = overlayEl.querySelector('#shops-hint');
-  const list = overlayEl.querySelector('#shops-list');
-  const cash = getCash();
+  const title = overlayNode.querySelector('#shops-title');
+  const sub = overlayNode.querySelector('#shops-sub');
+  const cashEl = overlayNode.querySelector('#shops-cash');
+  const hint = overlayNode.querySelector('#shops-hint');
+  const list = overlayNode.querySelector('#shops-list');
+  const cash = cashNow();
   cashEl.textContent = cash === null ? 'Cash: — (not wired yet)' : `Your cash: $${Number(cash).toLocaleString('en-US')}`;
   list.innerHTML = '';
 
   if (isWeapon) {
-    title.textContent = WEAPON_SHOP.name;
-    sub.textContent = WEAPON_SHOP.subtitle;
+    title.textContent = ARMORY.name;
+    sub.textContent = ARMORY.subtitle;
     hint.textContent = 'Keys 1–5 buy. Ammo is banked as reserve credit and loads into the gun automatically. Medkit heals 50 on the spot.';
     WEAPON_ITEMS.forEach((item) => {
-      const owned = item.kind === 'weapon' && store.owned[item.weapon];
-      const credits = item.kind === 'ammo' ? store.ammoCredits[item.weapon] : 0;
+      const owned = item.kind === 'weapon' && vault.owned[item.weapon];
+      const credits = item.kind === 'ammo' ? vault.ammoCredits[item.weapon] : 0;
       const afford = cash === null || cash >= item.price;
       const row = document.createElement('button');
       row.type = 'button';
-      Object.assign(row.style, {
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
-        padding: '12px 14px', borderRadius: '9px', cursor: owned ? 'not-allowed' : 'pointer',
-        border: '2px solid #78350f', background: '#2a1a05', color: '#fef3c7',
-        font: '16px system-ui, sans-serif', textAlign: 'left', width: '100%',
-        opacity: (!afford && !owned) ? 0.55 : 1,
-      });
+      styleRow(row, { clickable: !owned, dimmed: !afford && !owned });
       const extra = owned ? 'OWNED' : (item.kind === 'ammo' && credits > 0 ? `BANKED ×${credits}` : '');
       row.innerHTML = `<span><b>${item.name}</b> — <span style="color:#fcd34d">${item.desc}</span>
           ${extra ? `<span style="color:#4ade80"> [${extra}]</span>` : ''}</span>
@@ -326,24 +340,18 @@ function renderOverlay() {
       list.appendChild(row);
     });
   } else {
-    title.textContent = GARAGE.name;
-    sub.textContent = GARAGE.subtitle;
-    const car = getCar();
+    title.textContent = CUSTOMS.name;
+    sub.textContent = CUSTOMS.subtitle;
+    const car = carNow();
     const state = garageStateFor(car);
     hint.textContent = car
       ? `Your car: armor ${state.armor}/3 • engine ${state.engine}/3 • condition ${state.condition}%. Upgrades install in order — no skipping levels.`
-      : 'No car linked yet (Lane E wires getCar) — upgrades still save and apply to the next car you drive.';
+      : 'No car linked yet (main.js wires getCar) — upgrades still save and apply to the next car you drive.';
     garageRows().forEach((u) => {
       const afford = cash === null || cash >= u.price;
       const row = document.createElement('button');
       row.type = 'button';
-      Object.assign(row.style, {
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px',
-        padding: '12px 14px', borderRadius: '9px', cursor: u.disabled ? 'not-allowed' : 'pointer',
-        border: '2px solid #78350f', background: '#2a1a05', color: '#fef3c7',
-        font: '16px system-ui, sans-serif', textAlign: 'left', width: '100%',
-        opacity: (!afford && !u.disabled) || u.disabled ? 0.55 : 1,
-      });
+      styleRow(row, { clickable: !u.disabled, dimmed: (!afford && !u.disabled) || u.disabled });
       row.innerHTML = `<span><b>${u.name}</b> — <span style="color:#fcd34d">${u.desc}</span></span>
         <span style="font-weight:800;white-space:nowrap">${u.disabled ? u.stateText : '$' + u.price.toLocaleString('en-US')}</span>`;
       if (!u.disabled) row.addEventListener('click', () => { buyItem(u.id); });
@@ -353,23 +361,24 @@ function renderOverlay() {
 }
 
 function openOverlay(kind) {
-  if (!overlayEl) buildOverlay();
+  // Same shop already open: no second overlay, no re-render flicker.
+  if (overlayKind === kind && overlayNode && overlayNode.style.display === 'flex') return;
+  if (!overlayNode) buildOverlayDom();
   overlayKind = kind;
   renderOverlay();
-  overlayEl.style.display = 'flex';
+  overlayNode.style.display = 'flex';
 }
 
 function closeOverlay() {
-  if (overlayEl) overlayEl.style.display = 'none';
+  if (overlayNode) overlayNode.style.display = 'none';
   overlayKind = null;
 }
 
 // ---- buying ---------------------------------------------------------------------
-// Module-level buy(): the shop-row click handlers call bare buyItem(id),
-// and the api method delegates to it. (Lane E fix: the handlers called a
-// bare `buy(...)` that only existed as an api method, so every row click
-// threw `ReferenceError: buy is not defined` and no shop purchase could
-// ever succeed — the whole shop economy was dead on arrival.)
+// buyItem(): the single entry point for every shop-row click and for the
+// public buy(id). It routes to the right handler, and a successful
+// purchase re-renders the overlay from the persisted store, so the list
+// can never show stale ownership or cash.
 function buyItem(id) {
   const weaponItem = WEAPON_ITEMS.find((i) => i.id === id);
   if (weaponItem) {
@@ -385,105 +394,127 @@ function buyItem(id) {
     if (ok && overlayKind) renderOverlay();
     return ok;
   }
-  showToast(`No item '${id}' in the shops.`);
+  flashToast(`No item '${id}' in the shops.`);
   return false;
 }
 
+// The single choke point for money: checks first, deducts only on
+// success, so a failed purchase can never take cash.
 function spend(price) {
-  const cash = getCash();
+  const cash = cashNow();
   if (cash === null) {
-    showToast('Shop is not wired to your cash yet (Lane E).');
+    flashToast('Shop is not wired to your cash yet (main.js).');
     return false;
   }
   if (cash < price) {
-    showToast(`Not enough cash — you have $${Number(cash).toLocaleString('en-US')}.`);
+    flashToast(`Not enough cash — you have $${Number(cash).toLocaleString('en-US')}.`);
     return false;
   }
-  if (typeof deps.setCash === 'function') deps.setCash(cash - price);
+  if (typeof hooks.setCash === 'function') hooks.setCash(cash - price);
   return true;
 }
 
 function buyWeapon(item) {
-  if (store.owned[item.weapon]) {
-    showToast(`You already own the ${item.name}.`);
+  if (vault.owned[item.weapon]) {
+    flashToast(`You already own the ${item.name}.`);
     return false;
   }
   if (!spend(item.price)) return false;
-  store.owned[item.weapon] = true;
-  saveStore();
-  showToast(`${item.name} purchased — switch to it at the safehouse or with keys 1–3.`);
+  vault.owned[item.weapon] = true;
+  persistVault();
+  flashToast(`${item.name} purchased — switch to it at the safehouse or with keys 1–3.`);
   return true;
 }
 
 function buyAmmo(item) {
   if (!spend(item.price)) return false;
-  store.ammoCredits[item.weapon] += item.amount;
-  saveStore();
+  vault.ammoCredits[item.weapon] += item.amount;
+  persistVault();
   // Hand the credits to combat the moment it can take them.
   applyAmmoCredits();
-  showToast(`${item.name} purchased — reserve +${item.amount} rounds.`);
+  flashToast(`${item.name} purchased — reserve +${item.amount} rounds.`);
   return true;
 }
 
 function buyMedkit(item) {
-  if (typeof deps.getHealth !== 'function' || typeof deps.setHealth !== 'function') {
-    showToast('Medkit is not wired to health yet (Lane E).');
+  if (typeof hooks.getHealth !== 'function' || typeof hooks.setHealth !== 'function') {
+    flashToast('Medkit is not wired to health yet (main.js).');
     return false;
   }
-  const health = deps.getHealth();
+  const health = hooks.getHealth();
   if (health >= 100) {
-    showToast('Already at full health — save the medkit.');
+    flashToast('Already at full health — save the medkit.');
     return false;
   }
   if (!spend(item.price)) return false;
-  deps.setHealth(Math.min(100, health + 50));
-  showToast('Medkit used — +50 health.');
+  hooks.setHealth(Math.min(100, health + 50));
+  flashToast('Medkit used — +50 health.');
   return true;
 }
 
 function buyGarage(item) {
-  const car = getCar();
+  const car = carNow();
   if (item.kind === 'repair') {
-    const price = repairPrice();
-    if (store.garage.condition >= 100) {
-      showToast('Car is already at 100% condition.');
+    const price = currentRepairPrice();
+    if (vault.garage.condition >= 100) {
+      flashToast('Car is already at 100% condition.');
       return false;
     }
     if (!spend(price)) return false;
-    store.garage.condition = 100;
-    saveStore();
+    vault.garage.condition = 100;
+    persistVault();
     syncCarFields(car);
-    showToast('Car repaired to 100% condition.');
+    flashToast('Car repaired to 100% condition.');
     return true;
   }
   const key = item.kind; // 'armor' | 'engine'
-  const current = store.garage[key];
+  const current = vault.garage[key];
   if (current >= item.level) {
-    showToast(`${item.name} is already installed.`);
+    flashToast(`${item.name} is already installed.`);
     return false;
   }
   if (current !== item.level - 1) {
-    showToast(`Install ${key === 'armor' ? 'Plating' : 'Tune'} ${item.level - 1} first.`);
+    flashToast(`Install ${key === 'armor' ? 'Plating' : 'Tune'} ${item.level - 1} first.`);
     return false;
   }
   if (!spend(item.price)) return false;
-  store.garage[key] = item.level;
-  saveStore();
+  vault.garage[key] = item.level;
+  persistVault();
   syncCarFields(car);
-  showToast(`${item.name} installed on your car.`);
+  flashToast(`${item.name} installed on your car.`);
   return true;
+}
+
+/** Move banked ammo credits into combat when it supports it. Safe to call
+ *  any time: without the hook it is a no-op and the credits stay banked. */
+function applyAmmoCredits() {
+  const combat = typeof hooks.getCombat === 'function' ? hooks.getCombat() : null;
+  if (!combat || typeof combat.addAmmo !== 'function') return { pistol: 0, smg: 0 };
+  const applied = { pistol: 0, smg: 0 };
+  for (const weapon of ['pistol', 'smg']) {
+    const n = vault.ammoCredits[weapon];
+    if (n > 0) {
+      try {
+        combat.addAmmo(weapon, n);
+        applied[weapon] = n;
+        vault.ammoCredits[weapon] = 0;
+      } catch (err) { /* keep the credit banked if the hook balks */ }
+    }
+  }
+  if (applied.pistol || applied.smg) persistVault();
+  return applied;
 }
 
 // ---- public API -------------------------------------------------------------------
 export function createShops(scene, bindDeps = {}) {
-  deps = { ...bindDeps };
+  hooks = { ...bindDeps };
 
   const api = {
-    weaponShop: { name: WEAPON_SHOP.name, items: WEAPON_ITEMS },
-    garage: { name: GARAGE.name, upgrades: GARAGE_UPGRADES },
+    weaponShop: { name: ARMORY.name, items: WEAPON_ITEMS },
+    garage: { name: CUSTOMS.name, upgrades: GARAGE_UPGRADES },
 
     bind(nextDeps) {
-      deps = { ...deps, ...nextDeps };
+      hooks = { ...hooks, ...nextDeps };
       return api;
     },
 
@@ -491,12 +522,12 @@ export function createShops(scene, bindDeps = {}) {
       const s = targetScene || scene;
       if (!s || sceneRef) return api;
       sceneRef = s;
-      const armory = buildShopMarker(WEAPON_SHOP, 0x7c2d12, 0xf59e0b);
-      armory.position.z = WEAPON_SHOP.z - 8; // shopfront faces the road
+      const armory = buildStorefront(ARMORY, 0x7c2d12, 0xf59e0b);
+      armory.position.z = ARMORY.z - 8; // shopfront faces the road
       s.add(armory);
-      const customs = buildShopMarker(GARAGE, 0x1e3a5f, 0x38bdf8);
+      const customs = buildStorefront(CUSTOMS, 0x1e3a5f, 0x38bdf8);
       customs.rotation.y = Math.PI; // face MARINA DR from the south side
-      customs.position.z = GARAGE.z + 8;
+      customs.position.z = CUSTOMS.z + 8;
       s.add(customs);
       return api;
     },
@@ -511,17 +542,17 @@ export function createShops(scene, bindDeps = {}) {
 
     ownsWeapon(id) {
       if (id === 'fists') return true;
-      return !!store.owned[id];
+      return !!vault.owned[id];
     },
 
     ownedWeapons() {
-      return Object.keys(store.owned).filter((k) => store.owned[k]);
+      return Object.keys(vault.owned).filter((k) => vault.owned[k]);
     },
 
     /** Banked reserve rounds, per gun. combat.js cannot take them yet —
      *  see applyAmmoCredits(). */
     get ammoCredits() {
-      return { ...store.ammoCredits };
+      return { ...vault.ammoCredits };
     },
 
     /** If combat ever exposes addAmmo(weaponId, rounds), banked credits
@@ -533,9 +564,9 @@ export function createShops(scene, bindDeps = {}) {
     /** Garage levels for a car ({ armor, engine, condition }); the live
      *  car object is synced onto the same values when available. */
     garageState(car) {
-      const c = car || getCar();
+      const c = car || carNow();
       if (c) syncCarFields(c);
-      return { ...store.garage };
+      return { ...vault.garage };
     },
 
     /** Nearest shop within E range of a player position, else null.
@@ -543,13 +574,13 @@ export function createShops(scene, bindDeps = {}) {
     nearest(playerPos) {
       const p = playerPos && playerPos.position ? playerPos.position : playerPos;
       if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.z)) return null;
-      const dShop = Math.hypot(p.x - WEAPON_SHOP.x, p.z - WEAPON_SHOP.z);
-      const dGarage = Math.hypot(p.x - GARAGE.x, p.z - GARAGE.z);
-      if (dShop <= NEAR_RADIUS && dShop <= dGarage) {
-        return { kind: 'weapon', name: WEAPON_SHOP.name, dist: dShop, label: `Press E — ${WEAPON_SHOP.name}` };
+      const dShop = Math.hypot(p.x - ARMORY.x, p.z - ARMORY.z);
+      const dGarage = Math.hypot(p.x - CUSTOMS.x, p.z - CUSTOMS.z);
+      if (dShop <= TRIGGER_DIST && dShop <= dGarage) {
+        return { kind: 'weapon', name: ARMORY.name, dist: dShop, label: `Press E — ${ARMORY.name}` };
       }
-      if (dGarage <= NEAR_RADIUS) {
-        return { kind: 'garage', name: GARAGE.name, dist: dGarage, label: `Press E — ${GARAGE.name}` };
+      if (dGarage <= TRIGGER_DIST) {
+        return { kind: 'garage', name: CUSTOMS.name, dist: dGarage, label: `Press E — ${CUSTOMS.name}` };
       }
       return null;
     },
@@ -563,21 +594,21 @@ export function createShops(scene, bindDeps = {}) {
       return near.kind;
     },
 
-    /** Minimap dots for Lane E to merge into minimapExtras(). */
+    /** Minimap dots for main.js to merge into minimapExtras(). */
     dots() {
       return [
-        { x: WEAPON_SHOP.x, z: WEAPON_SHOP.z, color: '#f59e0b', label: WEAPON_SHOP.name },
-        { x: GARAGE.x, z: GARAGE.z, color: '#38bdf8', label: GARAGE.name },
+        { x: ARMORY.x, z: ARMORY.z, color: '#f59e0b', label: ARMORY.name },
+        { x: CUSTOMS.x, z: CUSTOMS.z, color: '#38bdf8', label: CUSTOMS.name },
       ];
     },
 
     isOpen() { return overlayKind !== null; },
     close() { closeOverlay(); },
     update(dt) {
-      pulse += dt || 0;
-      for (const b of beacons) {
-        b.beam.material.opacity = 0.16 + Math.sin(pulse * 2.0) * 0.06;
-        b.light.intensity = 26 + Math.sin(pulse * 2.0) * 8;
+      pulseClock += dt || 0;
+      for (const b of beaconList) {
+        b.beam.material.opacity = 0.16 + Math.sin(pulseClock * 2.0) * 0.06;
+        b.light.intensity = 26 + Math.sin(pulseClock * 2.0) * 8;
       }
     },
   };
@@ -586,27 +617,7 @@ export function createShops(scene, bindDeps = {}) {
   return api;
 }
 
-/** Move banked ammo credits into combat when it supports it. Safe to call
- *  any time: without the hook it is a no-op and the credits stay banked. */
-function applyAmmoCredits() {
-  const combat = typeof deps.getCombat === 'function' ? deps.getCombat() : null;
-  if (!combat || typeof combat.addAmmo !== 'function') return { pistol: 0, smg: 0 };
-  const applied = { pistol: 0, smg: 0 };
-  for (const weapon of ['pistol', 'smg']) {
-    const n = store.ammoCredits[weapon];
-    if (n > 0) {
-      try {
-        combat.addAmmo(weapon, n);
-        applied[weapon] = n;
-        store.ammoCredits[weapon] = 0;
-      } catch (err) { /* keep the credit banked if the hook balks */ }
-    }
-  }
-  if (applied.pistol || applied.smg) saveStore();
-  return applied;
-}
-
-// Default singleton: Lane E wires it with
+// Default singleton: main.js wires it with
 //   window.Shops.bind({ getCash, setCash, getHealth, setHealth, getCar, getCombat }).init(scene)
 if (typeof window !== 'undefined') {
   window.Shops = createShops(null);
@@ -614,6 +625,6 @@ if (typeof window !== 'undefined') {
 
 export const Shops = {
   create: createShops,
-  weaponShop: { name: WEAPON_SHOP.name, items: WEAPON_ITEMS },
-  garage: { name: GARAGE.name, upgrades: GARAGE_UPGRADES },
+  weaponShop: { name: ARMORY.name, items: WEAPON_ITEMS },
+  garage: { name: CUSTOMS.name, upgrades: GARAGE_UPGRADES },
 };

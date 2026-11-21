@@ -1,41 +1,57 @@
-// AZURE BAY — police response (Lane C, Fase 2).
-// Spawns and drives the wanted-level response: police cars that chase and
-// ram the player, foot officers who chase and shoot, and a helicopter that
-// circles overhead and opens fire at 5 stars. update() returns the HP
-// damage dealt to the player this frame — main.js (Lane D) subtracts it
-// from health. Browser ES modules only; no Node/Deno APIs.
+// AZURE BAY — police response, rewritten round 2.
+// Spawns and drives the wanted-level response: police cars that chase
+// and ram the player, foot officers who chase and shoot, and a
+// helicopter that circles overhead and opens fire at 5 stars. update()
+// returns the HP damage dealt to the player this frame — main.js
+// subtracts it from health. Browser ES modules only; no Node/Deno APIs.
+//
+// Round-2 robustness:
+//   - DEATH: when the player is dead (player.alive === false, set by
+//     player.js markDead()), the response stands down at once — no
+//     damage, no fresh spawns, units idle — instead of shooting a
+//     corpse while the death flow runs. The stand-down also covers
+//     the death-in-a-car eject: the abandoned car is never rammed
+//     as if the player were still driving it.
+//   - SPAWN HYSTERESIS: unit counts are only re-evaluated on a short
+//     timer, never every frame, so a one-frame wanted flicker cannot
+//     spawn a car and despawn it again in the same second.
+//   - Dead officers are pruned before the roster is counted, so a
+//     killed officer is replaced while the heat is still on (a combat
+//     stage needing 3-4 kills can never soft-lock for lack of targets).
 
 import * as THREE from 'three';
 import { createCar } from './car.js';
 import { CONFIG } from './config.js';
 
-const POLICE_BLUE = 0x1e3a8a;
-// Lane E: the heli body does NOT use POLICE_BLUE. Navy 0x1e3a8a under the
-// warm orange golden-hour sun (#ff9e45) loses its blue channel and the
-// metalness 0.4 (with no env map) starves the diffuse — the flank raycast
-// proved sunlit yet rendered dark warm brown (mean RGB ~119,92,74). A
-// bright sky blue with metalness 0 / high roughness keeps the blue
-// identity while the diffuse stays bright under the warm sun. The white
-// stripe still reads against it. Police cars + officers keep POLICE_BLUE.
-const HELI_BODY_BLUE = 0x7dd3fc;
-const MAX_CARS = 3;          // 1 car per wanted level, capped at 3
-const OFFICER_COUNT = 2;     // foot officers from level 2 up
-const OFFICER_SPEED = 5;     // m/s on foot
-const OFFICER_SHOOT_RANGE = 20; // m — officers open fire inside this
-const OFFICER_DPS = 2;       // HP per second per officer in range
-const HELI_DPS = 3;          // HP per second from the heli at level 5
-const RAM_DAMAGE = 5;        // HP per police-car ram
-const RAM_RANGE = 3;         // m — ramming distance
-const RAM_COOLDOWN = 1.5;    // s between rams from the same car
-const HELI_HEIGHT = 35;      // m above the ground
-const HELI_RADIUS = 25;      // m circle around the player
-const HELI_ORBIT = 0.35;     // rad/s around the player
-const DESPAWN_DELAY = 3;     // s after wanted hits 0 before units leave
-const SPAWN_CAR_DIST = 26;   // m from the player when a car spawns
-const SPAWN_OFFICER_DIST = 16; // m from the player when an officer spawns
+const UNIFORM_BLUE = 0x1e3a8a;
+// The heli body does NOT use UNIFORM_BLUE. Navy 0x1e3a8a under the warm
+// orange golden-hour sun (#ff9e45) loses its blue channel and the
+// metalness 0.4 (with no env map) starves the diffuse — the flank
+// raycast proved sunlit yet rendered dark warm brown (mean RGB
+// ~119,92,74). A bright sky blue with metalness 0 / high roughness
+// keeps the blue identity while the diffuse stays bright under the
+// warm sun. The white stripe still reads against it. Police cars +
+// officers keep UNIFORM_BLUE.
+const HELI_SKY_BLUE = 0x7dd3fc;
+const CAR_CAP = 3;            // 1 car per wanted level, capped at 3
+const FOOT_OFFICERS = 2;      // foot officers from level 2 up
+const OFFICER_PACE = 5;       // m/s on foot
+const OFFICER_FIRE_RANGE = 20; // m — officers open fire inside this
+const OFFICER_DPS = 2;        // HP per second per officer in range
+const HELI_DPS = 3;           // HP per second from the heli at level 5
+const RAM_HIT_DAMAGE = 5;     // HP per police-car ram
+const RAM_HIT_RANGE = 3;      // m — ramming distance
+const RAM_RECHARGE = 1.5;     // s between rams from the same car
+const HELI_ALTITUDE = 35;     // m above the ground
+const HELI_CIRCLE = 25;       // m circle around the player
+const HELI_ORBIT_SPEED = 0.35; // rad/s around the player
+const STAND_DOWN_DELAY = 3;   // s after wanted hits 0 before units leave
+const CAR_SPAWN_DIST = 26;    // m from the player when a car spawns
+const OFFICER_SPAWN_DIST = 16; // m from the player when an officer spawns
+const SYNC_EVERY = 0.4;       // s between spawn-count re-evaluations
 
 // Input object that presses nothing — used while the response stands down.
-const IDLE_INPUT = { isDown: () => false };
+const NO_INPUT = { isDown: () => false };
 
 function wrapAngle(a) {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -48,12 +64,21 @@ function randomOffset(dist) {
   return { x: Math.cos(a) * dist, z: Math.sin(a) * dist };
 }
 
+// Small helper: a box mesh placed at (x, y, z) and added to the group.
+function part(group, geo, mat, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  group.add(m);
+  return m;
+}
+
 // Foot officer: the same proportional silhouette as the player, in a
-// dark police-blue uniform with a peaked cap, a gold chest badge, a duty
-// belt and black shoes. Visual only — chase/shoot logic lives in update().
-function buildOfficerMesh() {
+// dark police-blue uniform with a peaked cap, a gold chest badge, a
+// duty belt and black shoes. Visual only — chase/shoot logic lives in
+// update().
+function buildOfficerFigure() {
   const group = new THREE.Group();
-  const uniform = new THREE.MeshStandardMaterial({ color: POLICE_BLUE, roughness: 0.85 });
+  const uniform = new THREE.MeshStandardMaterial({ color: UNIFORM_BLUE, roughness: 0.85 });
   const skin = new THREE.MeshStandardMaterial({ color: 0xe8b88a, roughness: 0.7 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 });
   const gold = new THREE.MeshStandardMaterial({
@@ -62,74 +87,42 @@ function buildOfficerMesh() {
 
   // Legs (hips ~0.83) + black shoes.
   const legGeo = new THREE.CapsuleGeometry(0.095, 0.55, 4, 8);
-  const legL = new THREE.Mesh(legGeo, dark);
-  legL.position.set(-0.13, 0.46, 0);
-  group.add(legL);
-  const legR = new THREE.Mesh(legGeo, dark);
-  legR.position.set(0.13, 0.46, 0);
-  group.add(legR);
+  part(group, legGeo, dark, -0.13, 0.46, 0);
+  part(group, legGeo, dark, 0.13, 0.46, 0);
   const shoeGeo = new THREE.BoxGeometry(0.17, 0.09, 0.32);
   for (const sx of [-0.13, 0.13]) {
-    const shoe = new THREE.Mesh(shoeGeo, dark);
-    shoe.position.set(sx, 0.045, 0.04);
-    group.add(shoe);
+    part(group, shoeGeo, dark, sx, 0.045, 0.04);
   }
 
   // Torso (uniform): hips 0.83 to shoulders ~1.48.
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.25, 6, 12), uniform);
-  body.position.y = 1.15;
-  body.castShadow = true;
-  group.add(body);
+  const torso = part(group, new THREE.CapsuleGeometry(0.22, 0.25, 6, 12), uniform, 0, 1.15, 0);
+  torso.castShadow = true;
 
   // Gold badge on the left chest + a shoulder radio.
-  const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), gold);
+  const badge = part(group, new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), gold, -0.11, 1.32, 0.215);
   badge.rotation.x = Math.PI / 2;
-  badge.position.set(-0.11, 1.32, 0.215);
-  group.add(badge);
-  const radio = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.05), dark);
-  radio.position.set(0.14, 1.38, 0.19);
-  group.add(radio);
+  part(group, new THREE.BoxGeometry(0.09, 0.14, 0.05), dark, 0.14, 1.38, 0.19);
 
   // Duty belt.
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 0.3), dark);
-  belt.position.y = 0.86;
-  group.add(belt);
+  part(group, new THREE.BoxGeometry(0.46, 0.08, 0.3), dark, 0, 0.86, 0);
 
   // Neck + head.
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.1, 10), skin);
-  neck.position.y = 1.52;
-  group.add(neck);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 16), skin);
-  head.position.y = 1.62;
+  part(group, new THREE.CylinderGeometry(0.06, 0.07, 0.1, 10), skin, 0, 1.52, 0);
+  const head = part(group, new THREE.SphereGeometry(0.135, 20, 16), skin, 0, 1.62, 0);
   head.castShadow = true;
-  group.add(head);
 
   // Peaked cap: flat crown + brim facing forward (+Z) + gold band.
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.155, 0.09, 16), dark);
-  crown.position.y = 1.73;
-  group.add(crown);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.03, 16), gold);
-  band.position.y = 1.7;
-  group.add(band);
-  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.03, 0.14), dark);
-  brim.position.set(0, 1.69, 0.15);
-  group.add(brim);
+  part(group, new THREE.CylinderGeometry(0.15, 0.155, 0.09, 16), dark, 0, 1.73, 0);
+  part(group, new THREE.CylinderGeometry(0.155, 0.155, 0.03, 16), gold, 0, 1.7, 0);
+  part(group, new THREE.BoxGeometry(0.2, 0.03, 0.14), dark, 0, 1.69, 0.15);
 
   // Arms (shoulders ~1.42) ending in hands at ~0.82.
   const armGeo = new THREE.CapsuleGeometry(0.07, 0.45, 4, 8);
-  const armL = new THREE.Mesh(armGeo, uniform);
-  armL.position.set(-0.3, 1.14, 0);
-  group.add(armL);
-  const armR = new THREE.Mesh(armGeo, uniform);
-  armR.position.set(0.3, 1.14, 0);
-  group.add(armR);
+  part(group, armGeo, uniform, -0.3, 1.14, 0);
+  part(group, armGeo, uniform, 0.3, 1.14, 0);
   const handGeo = new THREE.SphereGeometry(0.075, 12, 10);
-  const handL = new THREE.Mesh(handGeo, skin);
-  handL.position.set(-0.3, 0.82, 0);
-  group.add(handL);
-  const handR = new THREE.Mesh(handGeo, skin);
-  handR.position.set(0.3, 0.82, 0);
-  group.add(handR);
+  part(group, handGeo, skin, -0.3, 0.82, 0);
+  part(group, handGeo, skin, 0.3, 0.82, 0);
 
   return group;
 }
@@ -139,10 +132,10 @@ function buildOfficerMesh() {
 // skids on struts, tail boom + fin + tail rotor, a searchlight under
 // the nose, red/green navigation lights, and a 4-blade main rotor on a
 // mast. Returns { group, rotor }.
-function buildHeliMesh() {
+function buildHeliFigure() {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: HELI_BODY_BLUE, metalness: 0.0, roughness: 0.85,
+    color: HELI_SKY_BLUE, metalness: 0.0, roughness: 0.85,
   });
   const glass = new THREE.MeshStandardMaterial({
     color: 0x0f172a, metalness: 0.2, roughness: 0.15,
@@ -160,128 +153,72 @@ function buildHeliMesh() {
   const lampMat = new THREE.MeshStandardMaterial({
     color: 0xfff7cc, emissive: 0xfff2a8, emissiveIntensity: 1.5,
   });
-
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 4.6), bodyMat);
-  body.castShadow = true;
-  group.add(body);
-  // White stripe along both flanks.
-  const stripeGeo = new THREE.BoxGeometry(0.06, 0.3, 4.0);
-  for (const sx of [-1.12, 1.12]) {
-    const stripe = new THREE.Mesh(stripeGeo, white);
-    stripe.position.set(sx, 0.1, 0);
-    group.add(stripe);
-  }
-  // NIT-POLISH Lane C2: panel detail on the flanks. The body stays the
-  // same bright sage (HELI_BODY_BLUE, metalness 0, roughness 0.85) —
-  // these are small proud fittings, not a repaint. Cabin side windows
-  // (glass, above the white stripe so nothing z-fights it) + a smaller
-  // rear-cabin window, vertical panel seams and a low horizontal seam
-  // in mid slate-blue. All sit just proud of the body face (x = +/-1.1).
   const seamMat = new THREE.MeshStandardMaterial({
     color: 0x5b7a99, metalness: 0.0, roughness: 0.8,
   });
-  const sideWindowGeo = new THREE.BoxGeometry(0.05, 0.42, 1.0);
-  const rearWindowGeo = new THREE.BoxGeometry(0.05, 0.4, 0.9);
-  const vSeamGeo = new THREE.BoxGeometry(0.04, 1.1, 0.08);
-  const hSeamGeo = new THREE.BoxGeometry(0.04, 0.07, 4.3);
+
+  const body = part(group, new THREE.BoxGeometry(2.2, 1.4, 4.6), bodyMat, 0, 0, 0);
+  body.castShadow = true;
+  // White stripe along both flanks.
+  for (const sx of [-1.12, 1.12]) {
+    part(group, new THREE.BoxGeometry(0.06, 0.3, 4.0), white, sx, 0.1, 0);
+  }
+  // Cabin side windows (glass, above the white stripe so nothing
+  // z-fights it) + a smaller rear-cabin window, vertical panel seams
+  // and a low horizontal seam in mid slate-blue. All sit just proud
+  // of the body face (x = +/-1.1).
   for (const sx of [-1, 1]) {
-    const win = new THREE.Mesh(sideWindowGeo, glass);
-    win.position.set(sx * 1.12, 0.48, 1.45);
-    group.add(win);
-    const rearWin = new THREE.Mesh(rearWindowGeo, glass);
-    rearWin.position.set(sx * 1.12, 0.45, -0.9);
-    group.add(rearWin);
+    part(group, new THREE.BoxGeometry(0.05, 0.42, 1.0), glass, sx * 1.12, 0.48, 1.45);
+    part(group, new THREE.BoxGeometry(0.05, 0.4, 0.9), glass, sx * 1.12, 0.45, -0.9);
     for (const sz of [0.3, -1.7]) {
-      const seam = new THREE.Mesh(vSeamGeo, seamMat);
-      seam.position.set(sx * 1.16, 0, sz);
-      group.add(seam);
+      part(group, new THREE.BoxGeometry(0.04, 1.1, 0.08), seamMat, sx * 1.16, 0, sz);
     }
-    const hSeam = new THREE.Mesh(hSeamGeo, seamMat);
-    hSeam.position.set(sx * 1.16, -0.45, 0);
-    group.add(hSeam);
+    part(group, new THREE.BoxGeometry(0.04, 0.07, 4.3), seamMat, sx * 1.16, -0.45, 0);
   }
   // Engine deck on the roof behind the mast + two rear exhaust stubs.
-  // Steel-grey, small: the roof is barely visible from the low camera,
-  // but the deck edge and exhausts read against the bright body.
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.3, 1.8), steel);
-  deck.position.set(0, 0.85, -0.4);
-  group.add(deck);
+  part(group, new THREE.BoxGeometry(1.5, 0.3, 1.8), steel, 0, 0.85, -0.4);
   const exhaustGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 10);
   for (const sx of [-0.45, 0.45]) {
-    const exhaust = new THREE.Mesh(exhaustGeo, steel);
+    const exhaust = part(group, exhaustGeo, steel, sx, 0.85, -1.45);
     exhaust.rotation.x = Math.PI / 2;
-    exhaust.position.set(sx, 0.85, -1.45);
-    group.add(exhaust);
   }
-  const cockpit = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.9, 1.4), glass);
-  cockpit.position.set(0, 0.2, 1.8);
-  group.add(cockpit);
+  part(group, new THREE.BoxGeometry(2.0, 0.9, 1.4), glass, 0, 0.2, 1.8);
   // Searchlight under the nose.
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), lampMat);
-  lamp.position.set(0, -0.75, 2.0);
-  group.add(lamp);
+  part(group, new THREE.SphereGeometry(0.22, 12, 10), lampMat, 0, -0.75, 2.0);
 
   // Skids on four short struts.
   const skidGeo = new THREE.BoxGeometry(0.18, 0.18, 4.0);
   const strutGeo = new THREE.BoxGeometry(0.12, 0.5, 0.12);
   for (const sx of [-0.9, 0.9]) {
-    const skid = new THREE.Mesh(skidGeo, steel);
-    skid.position.set(sx, -0.95, 0);
-    group.add(skid);
+    part(group, skidGeo, steel, sx, -0.95, 0);
     for (const sz of [-1.2, 1.2]) {
-      const strut = new THREE.Mesh(strutGeo, steel);
-      strut.position.set(sx, -0.7, sz);
-      group.add(strut);
+      part(group, strutGeo, steel, sx, -0.7, sz);
     }
   }
   // Navigation lights on the skid tips: red port, green starboard.
   const navGeo = new THREE.SphereGeometry(0.09, 8, 8);
-  const navL = new THREE.Mesh(navGeo, navRed);
-  navL.position.set(-0.9, -0.95, 2.0);
-  group.add(navL);
-  const navR = new THREE.Mesh(navGeo, navGreen);
-  navR.position.set(0.9, -0.95, 2.0);
-  group.add(navR);
+  part(group, navGeo, navRed, -0.9, -0.95, 2.0);
+  part(group, navGeo, navGreen, 0.9, -0.95, 2.0);
 
-  const boom = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 3.4), bodyMat);
-  boom.position.set(0, 0.2, -3.8);
-  group.add(boom);
-  // NIT-POLISH Lane C2: white stripe along the boom flanks (continues
-  // the body stripe) + a horizontal stabiliser at the tail.
-  const boomStripeGeo = new THREE.BoxGeometry(0.04, 0.18, 3.0);
+  // Tail boom + white stripe along its flanks + horizontal stabiliser.
+  part(group, new THREE.BoxGeometry(0.7, 0.7, 3.4), bodyMat, 0, 0.2, -3.8);
   for (const sx of [-0.37, 0.37]) {
-    const bs = new THREE.Mesh(boomStripeGeo, white);
-    bs.position.set(sx, 0.2, -3.8);
-    group.add(bs);
+    part(group, new THREE.BoxGeometry(0.04, 0.18, 3.0), white, sx, 0.2, -3.8);
   }
-  const stabiliser = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 0.6), bodyMat);
-  stabiliser.position.set(0, 0.35, -4.9);
-  group.add(stabiliser);
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.4, 0.9), bodyMat);
-  fin.position.set(0, 0.8, -5.3);
-  group.add(fin);
+  part(group, new THREE.BoxGeometry(2.2, 0.08, 0.6), bodyMat, 0, 0.35, -4.9);
+  part(group, new THREE.BoxGeometry(0.2, 1.4, 0.9), bodyMat, 0, 0.8, -5.3);
   // Tail rotor: small hub + two blades on the fin's left side.
-  const tailHub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.16, 8), steel);
+  const tailHub = part(group, new THREE.CylinderGeometry(0.08, 0.08, 0.16, 8), steel, -0.16, 0.8, -5.3);
   tailHub.rotation.z = Math.PI / 2;
-  tailHub.position.set(-0.16, 0.8, -5.3);
-  group.add(tailHub);
-  const tailBlade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.12), steel);
-  tailBlade.position.set(-0.26, 0.8, -5.3);
-  group.add(tailBlade);
+  part(group, new THREE.BoxGeometry(0.06, 1.1, 0.12), steel, -0.26, 0.8, -5.3);
 
   const rotor = new THREE.Group();
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.7, 8), steel);
-  mast.position.y = 0.9;
-  rotor.add(mast);
+  part(rotor, new THREE.CylinderGeometry(0.12, 0.12, 0.7, 8), steel, 0, 0.9, 0);
   // Two crossed blades = a 4-blade rotor disc.
   const bladeGeo = new THREE.BoxGeometry(9, 0.08, 0.5);
-  const bladeA = new THREE.Mesh(bladeGeo, steel);
-  bladeA.position.y = 1.25;
-  rotor.add(bladeA);
-  const bladeB = new THREE.Mesh(bladeGeo, steel);
-  bladeB.position.y = 1.25;
+  part(rotor, bladeGeo, steel, 0, 1.25, 0);
+  const bladeB = part(rotor, bladeGeo, steel, 0, 1.25, 0);
   bladeB.rotation.y = Math.PI / 2;
-  rotor.add(bladeB);
   group.add(rotor);
 
   return { group, rotor };
@@ -293,8 +230,9 @@ export function createPolice(scene, city) {
   const api = { cars, officers, heli: null, update };
 
   let clearTimer = 0; // s since wanted hit 0 (despawn grace)
-  let time = 0;       // s, drives the light-bar flash
+  let clock = 0;      // s, drives the light-bar flash
   let heliAngle = 0;  // rad, heli position on its orbit circle
+  let syncTimer = 0;  // s since the spawn roster was last re-evaluated
 
   // A spawn point `dist` metres from the player, on walkable land when
   // possible (a few random angles are tried before giving up).
@@ -310,14 +248,14 @@ export function createPolice(scene, city) {
   }
 
   function spawnCar(playerPos) {
-    const p = spawnPointNear(playerPos, SPAWN_CAR_DIST);
+    const p = spawnPointNear(playerPos, CAR_SPAWN_DIST);
     // Police livery + roof light bar come from car.js ({ police: true });
     // the bar materials are flashed by flashLights() below. The response
     // is no longer all sedans: mostly patrol sedans, sometimes a police
-    // van or a box truck (Lane D flawfix).
+    // van or a box truck.
     const r = Math.random();
     const variant = r < 0.6 ? 'sedan' : r < 0.8 ? 'van' : 'truck';
-    const car = createCar(scene, new THREE.Vector3(p.x, CONFIG.groundY, p.z), POLICE_BLUE, { police: true, variant });
+    const car = createCar(scene, new THREE.Vector3(p.x, CONFIG.groundY, p.z), UNIFORM_BLUE, { police: true, variant });
     const unit = {
       car,
       /** Live world position (the car mesh position) — for the minimap. */
@@ -331,8 +269,8 @@ export function createPolice(scene, city) {
   }
 
   function spawnOfficer(playerPos) {
-    const p = spawnPointNear(playerPos, SPAWN_OFFICER_DIST);
-    const mesh = buildOfficerMesh();
+    const p = spawnPointNear(playerPos, OFFICER_SPAWN_DIST);
+    const mesh = buildOfficerFigure();
     mesh.position.set(p.x, CONFIG.groundY, p.z);
     scene.add(mesh);
     const officer = {
@@ -349,9 +287,9 @@ export function createPolice(scene, city) {
   }
 
   function spawnHeli(playerPos) {
-    const { group, rotor } = buildHeliMesh();
+    const { group, rotor } = buildHeliFigure();
     group.position.set(
-      playerPos.x + HELI_RADIUS, CONFIG.groundY + HELI_HEIGHT, playerPos.z,
+      playerPos.x + HELI_CIRCLE, CONFIG.groundY + HELI_ALTITUDE, playerPos.z,
     );
     scene.add(group);
     api.heli = {
@@ -388,19 +326,21 @@ export function createPolice(scene, city) {
     removeHeli();
   }
 
-  // Match the live unit counts to the wanted level.
+  // Match the live unit counts to the wanted level. Only called from
+  // the sync timer, never every frame, so a one-frame level flicker
+  // cannot spawn and despawn a unit in the same second.
   function syncSpawns(level, playerPos) {
-    const wantCars = level >= 1 ? Math.min(level, MAX_CARS) : 0;
-    const wantOfficers = level >= 2 ? OFFICER_COUNT : 0;
+    const wantCars = level >= 1 ? Math.min(level, CAR_CAP) : 0;
+    const wantOfficers = level >= 2 ? FOOT_OFFICERS : 0;
     const wantHeli = level >= 4 ? 1 : 0;
-    // Fase 4 (Lane A): a killed officer leaves the roster, so a fresh
-    // one spawns while the heat is still on. Without this the two
-    // officers from level 2 were the only ones a wanted episode ever
-    // produced — combat.js hides a dead officer but leaves it in the
-    // array, so `officers.length` never dropped below wantOfficers and
-    // no replacement ever spawned. A combat stage needing 3-4 kills
-    // could then only be finished by shooting pedestrians, and a
-    // player who fought only the crew soft-locked the mission.
+    // A killed officer leaves the roster, so a fresh one spawns while
+    // the heat is still on. Without this the two officers from level 2
+    // were the only ones a wanted episode ever produced — combat.js
+    // hides a dead officer but leaves it in the array, so
+    // `officers.length` never dropped below wantOfficers and no
+    // replacement ever spawned. A combat stage needing 3-4 kills could
+    // then only be finished by shooting pedestrians, and a player who
+    // fought only the crew soft-locked the mission.
     for (let i = officers.length - 1; i >= 0; i--) {
       if (!officers[i].alive) removeOfficer(officers[i]);
     }
@@ -414,7 +354,7 @@ export function createPolice(scene, city) {
 
   // Alternate the red/blue roof lights, ~4 flashes per second.
   function flashLights(unit) {
-    const redOn = Math.floor(time * 4) % 2 === 0;
+    const redOn = Math.floor(clock * 4) % 2 === 0;
     unit.lightRed.emissiveIntensity = redOn ? 2.5 : 0.25;
     unit.lightBlue.emissiveIntensity = redOn ? 0.25 : 2.5;
   }
@@ -442,29 +382,45 @@ export function createPolice(scene, city) {
 
   function update(dt, cityArg, playerPos, player, wanted) {
     if (!(dt > 0)) return 0;
-    time += dt;
+    clock += dt;
     const level = wanted && typeof wanted.level === 'number' ? wanted.level : 0;
     const cityRef = cityArg || city;
     let damage = 0;
+
+    // The player is dead (player.js markDead()): the response stands
+    // down at once. No damage, no fresh spawns, no ramming the
+    // abandoned car as if the player were still driving it — the
+    // units already out just idle until the death flow finishes.
+    if (player && player.alive === false) {
+      for (const unit of cars) {
+        unit.car.update(dt, NO_INPUT, cityRef);
+        flashLights(unit);
+      }
+      return 0;
+    }
 
     if (level <= 0) {
       // Wanted cleared: the response stands down after a few seconds.
       // Units still on the scene idle meanwhile — cars coast to a stop,
       // officers hold position, nobody shoots.
       clearTimer += dt;
-      if (clearTimer >= DESPAWN_DELAY) {
+      if (clearTimer >= STAND_DOWN_DELAY) {
         removeAll();
         clearTimer = 0;
       } else {
         for (const unit of cars) {
-          unit.car.update(dt, IDLE_INPUT, cityRef);
+          unit.car.update(dt, NO_INPUT, cityRef);
           flashLights(unit);
         }
       }
       return 0;
     }
     clearTimer = 0;
-    syncSpawns(level, playerPos);
+    syncTimer += dt;
+    if (syncTimer >= SYNC_EVERY) {
+      syncTimer = 0;
+      syncSpawns(level, playerPos);
+    }
 
     // ---- police cars: chase the player, ram on contact ---------------------
     for (const unit of cars) {
@@ -473,9 +429,9 @@ export function createPolice(scene, city) {
       flashLights(unit);
 
       unit.ramCooldown = Math.max(0, unit.ramCooldown - dt);
-      if (dist < RAM_RANGE && unit.ramCooldown <= 0) {
-        damage += RAM_DAMAGE;
-        unit.ramCooldown = RAM_COOLDOWN;
+      if (dist < RAM_HIT_RANGE && unit.ramCooldown <= 0) {
+        damage += RAM_HIT_DAMAGE;
+        unit.ramCooldown = RAM_RECHARGE;
         // Shove an on-foot player away from the bumper. In a car the
         // damage alone is the hit (main.js mirrors the car position).
         if (player && !player.isInCar && dist > 0.01) {
@@ -492,7 +448,7 @@ export function createPolice(scene, city) {
       const dz = playerPos.z - officer.position.z;
       const dist = Math.hypot(dx, dz);
       if (dist > 0.5) {
-        const step = OFFICER_SPEED * dt;
+        const step = OFFICER_PACE * dt;
         const nx = officer.position.x + (dx / dist) * step;
         const nz = officer.position.z + (dz / dist) * step;
         // Stay on land; slide along one axis if the other is blocked.
@@ -505,20 +461,20 @@ export function createPolice(scene, city) {
         }
         officer.heading = Math.atan2(dx, dz);
         officer.mesh.rotation.y = officer.heading;
-        officer.speed = OFFICER_SPEED;
+        officer.speed = OFFICER_PACE;
       } else {
         officer.speed = 0;
       }
       officer.position.y = CONFIG.groundY;
-      if (dist <= OFFICER_SHOOT_RANGE) damage += OFFICER_DPS * dt;
+      if (dist <= OFFICER_FIRE_RANGE) damage += OFFICER_DPS * dt;
     }
 
     // ---- helicopter: orbit the player, shoot at 5 stars ---------------------
     if (api.heli) {
-      heliAngle += HELI_ORBIT * dt;
-      const hx = playerPos.x + Math.cos(heliAngle) * HELI_RADIUS;
-      const hz = playerPos.z + Math.sin(heliAngle) * HELI_RADIUS;
-      api.heli.position.set(hx, CONFIG.groundY + HELI_HEIGHT, hz);
+      heliAngle += HELI_ORBIT_SPEED * dt;
+      const hx = playerPos.x + Math.cos(heliAngle) * HELI_CIRCLE;
+      const hz = playerPos.z + Math.sin(heliAngle) * HELI_CIRCLE;
+      api.heli.position.set(hx, CONFIG.groundY + HELI_ALTITUDE, hz);
       // Face along the orbit tangent.
       api.heli.mesh.rotation.y = Math.atan2(-Math.sin(heliAngle), Math.cos(heliAngle));
       api.heli.rotor.rotation.y += dt * 25;

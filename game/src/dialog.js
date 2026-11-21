@@ -1,18 +1,26 @@
-// dialog.js — AZURE BAY dialog box (Lane A, Fase 3)
+// dialog.js — AZURE BAY dialog box, rewritten round 2.
 // A big, readable bottom-of-screen dialog box: speaker name + text,
 // optional choice buttons. It creates its own DOM (the page has no
-// dialog markup — this lane must not edit index.html), so it works
+// dialog markup — this module must not edit index.html), so it works
 // from a bare <script type="module"> import.
 //
 // PAUSING THE GAME: Dialog cannot outrun main.js's own window keydown
 // listeners (same-target listeners fire in registration order), so the
-// pause contract is a gate, not an event fight — Lane E's main loop
-// must skip game input while Dialog.isOpen() is true (skip
-// tryEnterExitCar / togglePause / player+car update, and drain the
-// queued E/Escape presses), and only resume once it closes. Dialog
-// also sets window.__dialogOpen so any other lane can read the state
-// without importing it. Clicks on the box never reach the canvas, so
-// a click that advances dialog cannot also fire a weapon.
+// pause contract is a gate, not an event fight — main.js must skip
+// game input while Dialog.isOpen() is true (skip tryEnterExitCar /
+// togglePause / player+car update, and drain the queued E/Escape
+// presses), and only resume once it closes. Dialog also sets
+// window.__dialogOpen so any other module can read the state without
+// importing it. Clicks on the box never reach the canvas, so a click
+// that advances dialog cannot also fire a weapon.
+//
+// ONE QUEUE, NO OVERLAP (round-2 fix): every line — a lone show() or a
+// showQueue() chain — funnels into a single FIFO. The box shows one
+// line at a time and each close pulls the next line off the queue, so
+// a stage line fired in the same frame as an intro can never overwrite
+// it, and two systems talking at once can never interleave their
+// lines. The queue is capped (oldest lines drop past the cap) so a
+// runaway producer cannot stack a hundred boxes behind the current one.
 //
 // Usage:
 //   Dialog.show('ROOK', 'Take this package across BRIDGE RD.', {
@@ -20,10 +28,14 @@
 //     onClose: () => { /* next line, or resume */ },
 //   });
 //   Dialog.showQueue([{ speaker, text }, ...], done);
-//   Dialog.hide(); Dialog.isOpen();
+//   Dialog.hide(); Dialog.isOpen(); Dialog.clearQueue();
 
 const STYLE_ID = 'azure-dialog-style';
 const ROOT_ID = 'azure-dialog';
+// Past this many waiting lines, the oldest waiting line is dropped:
+// a runaway producer must never stack a hundred boxes behind the one
+// the player is reading.
+const QUEUE_CAP = 8;
 
 const CSS = `
 #${ROOT_ID} {
@@ -32,11 +44,7 @@ const CSS = `
   bottom: 28px;
   transform: translateX(-50%);
   width: min(760px, calc(100vw - 48px));
-  box-sizing: border-box; /* Lane D (fase4): without this the 760px
-    width was content-box, so padding + border made the box 808px
-    wide and its right edge overlapped the minimap's left edge by
-    4px in the combat/heli shots. Border-box keeps the whole box
-    inside the 760px, clear of the minimap. */
+  box-sizing: border-box;
   z-index: 60;
   display: none;
   flex-direction: column;
@@ -107,15 +115,12 @@ let hintEl = null;
 let open = false;
 let onCloseCb = null;
 let currentChoices = [];
-// Lines shown while a dialog is already open wait here instead of
-// overwriting it (Fase 4, Lane A): Dialog.show() used to replace the
-// open box AND its onClose chain, so the rest of the open chain never
-// showed. A mission whose stage 0 sits on its start marker completes
-// in the very frame it starts, and the stage-lines showQueue fired in
-// that same frame — the whole intro vanished, and the player only ever
-// saw the stage line. Queued lines play in order as each box closes;
-// hide() drains the queue.
-let queued = [];
+// The single FIFO every line waits in. A line shown while a dialog is
+// already open waits here instead of overwriting it: the open box
+// keeps its onClose chain, and this line plays when the open chain
+// finishes. showQueue() pushes its whole chain here too, so two
+// systems talking at once can never interleave their lines.
+let lineQueue = [];
 
 function ensureDOM() {
   if (root) return;
@@ -167,11 +172,11 @@ function ensureDOM() {
 
   // Belt and braces for the same reflow: a ResizeObserver on the box
   // itself fires whenever its size changes for any reason (viewport
-  // resize, a longer line, a choice row appearing). A live probe
-  // (fase4) caught the window-resize listener missing one reflow —
-  // the clear line went stale and the mission pill sat ~90 px too
-  // low — so the clear line is now re-measured from the box itself,
-  // not from the resize event alone.
+  // resize, a longer line, a choice row appearing). A live probe once
+  // caught the window-resize listener missing one reflow — the clear
+  // line went stale and the mission pill sat ~90 px too low — so the
+  // clear line is now re-measured from the box itself, not from the
+  // resize event alone.
   if (typeof ResizeObserver !== 'undefined') {
     new ResizeObserver(() => {
       if (open) measureDialogClear();
@@ -204,20 +209,20 @@ function setOpen(value) {
   open = value;
   if (typeof window !== 'undefined') window.__dialogOpen = value;
   if (typeof document === 'undefined' || !document.body) return;
-  // Lane C (fase4, nit a): while a dialog is open, the bottom-centre HUD
-  // pills (mission tracker + objective) must lift clear of the dialog
-  // box instead of sitting underneath it — the combat shot had the
-  // "M1 — HOOK AND CHAIN — 1/3" pill and the objective line half-hidden
-  // behind the box. The HUD rules live in hud.js / hud-fase3.js and read
-  // this class + custom property; the height is measured from the live
-  // box so a longer line or a choice row still clears.
+  // While a dialog is open, the bottom-centre HUD pills (mission
+  // tracker + objective) must lift clear of the dialog box instead of
+  // sitting underneath it — a combat shot once had the mission pill
+  // and the objective line half-hidden behind the box. The HUD rules
+  // live in hud.js / hud-fase3.js and read this class + custom
+  // property; the height is measured from the live box so a longer
+  // line or a choice row still clears.
   document.body.classList.toggle('azure-dialog-open', value);
   if (value) measureDialogClear();
   else document.body.style.removeProperty('--azure-dialog-clear');
 }
 
-// Distance from the viewport bottom to the top of the dialog box, plus a
-// 14 px gap: the clear line the HUD pills must sit above.
+// Distance from the viewport bottom to the top of the dialog box, plus
+// a 14 px gap: the clear line the HUD pills must sit above.
 function measureDialogClear() {
   if (!root || !document.body) return;
   const height = root.offsetHeight || 0;
@@ -237,24 +242,16 @@ function pickChoice(index) {
   if (cb) cb();
 }
 
-function show(speaker, text, opts) {
-  ensureDOM();
-  if (!root) return false;
-  const options = opts || {};
-  // A dialog is already open: queue behind it instead of overwriting
-  // it (see `queued` above). The open box keeps its onClose chain, and
-  // this line plays when the open chain finishes.
-  if (open) {
-    queued.push({ speaker, text, opts: options });
-    return true;
-  }
-  const choices = Array.isArray(options.choices) ? options.choices : [];
+// Render one queued entry in the box. Entries carry their own onClose,
+// which runs when this box closes — before the next queued line.
+function renderEntry(entry) {
+  const choices = Array.isArray(entry.opts && entry.opts.choices) ? entry.opts.choices : [];
   currentChoices = choices;
-  onCloseCb = typeof options.onClose === 'function' ? options.onClose : null;
+  onCloseCb = entry.opts && typeof entry.opts.onClose === 'function' ? entry.opts.onClose : null;
 
-  speakerEl.textContent = String(speaker || '');
-  speakerEl.style.display = speaker ? '' : 'none';
-  textEl.textContent = String(text || '');
+  speakerEl.textContent = String(entry.speaker || '');
+  speakerEl.style.display = entry.speaker ? '' : 'none';
+  textEl.textContent = String(entry.text || '');
 
   choicesEl.innerHTML = '';
   choices.forEach((choice, i) => {
@@ -275,6 +272,25 @@ function show(speaker, text, opts) {
 
   root.style.display = 'flex';
   setOpen(true);
+}
+
+// Pull the next line off the queue and show it, if any is waiting and
+// nothing is open now.
+function drainQueue() {
+  if (open || lineQueue.length === 0) return;
+  renderEntry(lineQueue.shift());
+}
+
+function enqueue(entry) {
+  lineQueue.push(entry);
+  while (lineQueue.length > QUEUE_CAP) lineQueue.shift();
+  drainQueue();
+}
+
+function show(speaker, text, opts) {
+  ensureDOM();
+  if (!root) return false;
+  enqueue({ speaker, text, opts: opts || {} });
   return true;
 }
 
@@ -286,39 +302,41 @@ function hide() {
   const cb = onCloseCb;
   onCloseCb = null;
   if (cb) cb();
-  // The onClose callback may itself have opened a dialog (the intro
+  // The onClose callback may itself have opened a dialog (an intro
   // chain's next line): only drain the queue when nothing is open now.
-  if (!open && queued.length > 0) {
-    const next = queued.shift();
-    show(next.speaker, next.text, next.opts);
-  }
+  drainQueue();
 }
 
 function isOpen() {
   return open;
 }
 
-// Show lines one after another: each box closes into the next, and
-// `done` runs after the last one closes. A no-op when lines is empty.
+// Show lines one after another: the whole chain goes through the one
+// central queue, so a show() from anywhere else waits behind the
+// chain instead of cutting in front of it. `done` runs after the last
+// line closes. A no-op when lines is empty.
 function showQueue(lines, done) {
   if (!Array.isArray(lines) || lines.length === 0) {
     if (typeof done === 'function') done();
     return;
   }
-  let i = 0;
-  const next = () => {
-    if (i >= lines.length) {
-      if (typeof done === 'function') done();
-      return;
-    }
-    const line = lines[i];
-    i += 1;
-    show(line.speaker || '', line.text || '', { onClose: next });
-  };
-  next();
+  const chain = lines.map((line) => ({
+    speaker: line.speaker || '',
+    text: line.text || '',
+    opts: {},
+  }));
+  const last = chain[chain.length - 1];
+  const userDone = typeof done === 'function' ? done : null;
+  last.opts.onClose = userDone;
+  for (const entry of chain) enqueue(entry);
 }
 
-export const Dialog = { show, showQueue, hide, isOpen };
+// Drop every line still waiting (the open box, if any, is untouched).
+function clearQueue() {
+  lineQueue = [];
+}
+
+export const Dialog = { show, showQueue, hide, isOpen, clearQueue };
 if (typeof window !== 'undefined') {
   window.Dialog = Dialog;
 }

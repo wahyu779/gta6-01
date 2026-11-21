@@ -1,42 +1,47 @@
-// hud-fase3.js — AZURE BAY Fase 3 HUD additions (Lane D, Fase 3).
+// hud-fase3.js — AZURE BAY Fase 3 HUD additions (rewrite round 2).
 // Mission tracker, respect, radio readout and the SAVED flash — the four
 // readouts the Fase 3 lanes add on top of the Fase 1 HUD (hud.js).
 //
-// Contract (Lane E wires this into main.js):
+// Contract (main.js wires this in):
 //   window.HudFase3 = { missionTrackerText(), respectText(), savedFlash(), radioText() }
 // Each function takes the value to show, writes it into its on-screen
-// element and returns the exact string now displayed, so Lane E (and the
+// element and returns the exact string now displayed, so the caller (and
 // screenshot staging) can assert on the return value without reading the DOM.
 //
 // The elements are created HERE, not in index.html, so this file is
-// self-contained: mount once (automatic on first use) and the readouts exist
-// for screenshots even before Lane E wires the per-frame update. Styling
-// matches the Fase 1 HUD — dark pill backing, bold white text, hard shadow
-// — so the new chips read over the bright golden-hour sky. All elements
-// are pointer-events:none and never intercept clicks.
+// self-contained: mount once (automatic on first use) and the readouts
+// exist for screenshots even before main.js wires the per-frame update.
+// Styling matches the Fase 1 HUD — dark pill backing, bold white text,
+// hard shadow — so the new chips read over the bright golden-hour sky.
+// All elements are pointer-events:none and never intercept clicks.
 //
 // Layout (screen corners, clear of the Fase 1 chips):
 //   top-right, under the clock:  radio station
 //   top-left, under cash:       respect
-//   left, above the objective:  mission tracker
+//   left-centre, above objective: mission tracker
 //   screen centre:              SAVED flash (2 s, then hides)
+// Round-2 fix: the old chips used fixed pixel offsets that collided with
+// the Fase 1 HUD at 800x500 (respect over cash, radio over the clock).
+// Positions and font sizes are now recomputed from the viewport on mount
+// and on every resize — a compact arrangement under 960x620 — so no two
+// chips can overlap at any window size.
 
-const RESPECT_RANKS = [
+const RANK_STEPS = [
   { min: 500, label: 'BAY KING' },
   { min: 250, label: 'RESPECTED' },
   { min: 100, label: 'HUSTLER' },
   { min: 0, label: 'ROOKIE' },
 ];
 
-function respectRank(value) {
-  for (const rank of RESPECT_RANKS) {
-    if (value >= rank.min) return rank.label;
+function rankFor(value) {
+  for (const step of RANK_STEPS) {
+    if (value >= step.min) return step.label;
   }
   return 'ROOKIE';
 }
 
 // Shared chip styling: same dark pill + shadow language as hud.js.
-function styleChip(node, fontSize) {
+function paintChip(node, fontPx) {
   node.style.position = 'absolute';
   node.style.background = 'rgba(0, 0, 0, 0.55)';
   node.style.border = '1px solid rgba(255, 255, 255, 0.25)';
@@ -44,7 +49,7 @@ function styleChip(node, fontSize) {
   node.style.padding = '3px 10px';
   node.style.color = '#ffffff';
   node.style.fontFamily = 'system-ui, sans-serif';
-  node.style.fontSize = fontSize;
+  node.style.fontSize = fontPx;
   node.style.fontWeight = '700';
   node.style.whiteSpace = 'nowrap';
   node.style.textShadow = '0 1px 3px rgba(0, 0, 0, 0.9)';
@@ -53,71 +58,95 @@ function styleChip(node, fontSize) {
 }
 
 export function createHudFase3() {
-  let mounted = false;
-  let radioEl = null;
-  let respectEl = null;
-  let missionEl = null;
-  let savedEl = null;
+  let isMounted = false;
+  let radioChip = null;
+  let respectChip = null;
+  let missionChip = null;
+  let savedChip = null;
   let savedTimer = null;
 
+  // Recompute chip geometry from the viewport. Roomy above 960x620,
+  // compact below: smaller fonts, tighter gaps, and the respect chip
+  // pushed further down so it can never sit on the cash readout.
+  function fitChips() {
+    if (!isMounted) return;
+    const vw = typeof window !== 'undefined' ? (window.innerWidth || 1280) : 1280;
+    const vh = typeof window !== 'undefined' ? (window.innerHeight || 800) : 800;
+    const compact = vw < 960 || vh < 620;
+    const font = compact ? '14px' : '18px';
+    const edge = compact ? '8px' : '16px';
+    if (radioChip) {
+      paintChip(radioChip, font);
+      radioChip.style.top = compact ? '44px' : '56px';
+      radioChip.style.right = edge;
+    }
+    if (respectChip) {
+      paintChip(respectChip, font);
+      respectChip.style.top = compact ? '104px' : '132px';
+      respectChip.style.left = edge;
+    }
+    if (missionChip) {
+      paintChip(missionChip, font);
+      missionChip.style.bottom = compact ? '48px' : '56px';
+      missionChip.style.left = '50%';
+      missionChip.style.transform = 'translateX(-50%)';
+      missionChip.style.maxWidth = compact ? '70vw' : '60vw';
+      missionChip.style.overflow = 'hidden';
+      missionChip.style.textOverflow = 'ellipsis';
+    }
+    if (savedChip) {
+      paintChip(savedChip, compact ? '20px' : '28px');
+      savedChip.style.color = '#4ade80';
+    }
+  }
+
   function mount() {
-    if (mounted) return true;
+    if (isMounted) return true;
     if (typeof document === 'undefined') return false;
     const root = document.body || document.documentElement;
     if (!root) return false;
 
-    radioEl = document.createElement('div');
-    radioEl.id = 'hud-fase3-radio';
-    styleChip(radioEl, '18px');
-    radioEl.style.top = '56px';
-    radioEl.style.right = '16px';
-    radioEl.textContent = '♪ RADIO NARANJA 99.1 FM';
-    root.appendChild(radioEl);
+    radioChip = document.createElement('div');
+    radioChip.id = 'hud-fase3-radio';
+    radioChip.textContent = '♪ RADIO NARANJA 99.1 FM';
+    root.appendChild(radioChip);
 
-    respectEl = document.createElement('div');
-    respectEl.id = 'hud-fase3-respect';
-    styleChip(respectEl, '18px');
-    respectEl.style.top = '132px';
-    respectEl.style.left = '16px';
-    respectEl.textContent = 'RESPECT 0 · ROOKIE';
-    root.appendChild(respectEl);
+    respectChip = document.createElement('div');
+    respectChip.id = 'hud-fase3-respect';
+    respectChip.textContent = 'RESPECT 0 · ROOKIE';
+    root.appendChild(respectChip);
 
-    missionEl = document.createElement('div');
-    missionEl.id = 'hud-fase3-mission';
-    styleChip(missionEl, '18px');
-    missionEl.style.top = 'auto';
-    missionEl.style.bottom = '56px';
-    missionEl.style.left = '50%';
-    missionEl.style.transform = 'translateX(-50%)';
-    missionEl.textContent = 'No active mission';
-    root.appendChild(missionEl);
+    missionChip = document.createElement('div');
+    missionChip.id = 'hud-fase3-mission';
+    missionChip.textContent = 'No active mission';
+    root.appendChild(missionChip);
 
-    savedEl = document.createElement('div');
-    savedEl.id = 'hud-fase3-saved';
-    styleChip(savedEl, '28px');
-    savedEl.style.top = '38%';
-    savedEl.style.left = '50%';
-    savedEl.style.transform = 'translate(-50%, -50%)';
-    savedEl.style.color = '#4ade80';
-    savedEl.style.display = 'none';
-    savedEl.textContent = '✓ SAVED';
-    root.appendChild(savedEl);
+    savedChip = document.createElement('div');
+    savedChip.id = 'hud-fase3-saved';
+    savedChip.style.top = '38%';
+    savedChip.style.left = '50%';
+    savedChip.style.transform = 'translate(-50%, -50%)';
+    savedChip.style.display = 'none';
+    savedChip.textContent = '✓ SAVED';
+    root.appendChild(savedChip);
 
-    // Lane C (fase4, nit a): while a dialog is open, dialog.js puts the
-    // `azure-dialog-open` class + `--azure-dialog-clear` (dialog top
-    // edge + gap) on <body>. Lift the mission tracker above the dialog
-    // box — and above the objective pill, which hud.js lifts to the
-    // clear line itself — so the "M1 — HOOK AND CHAIN — 1/3" pill and
-    // the dialog both read at once. !important is required: the pill's
-    // bottom is set inline in mount() above.
+    // While a dialog is open, dialog.js puts the `azure-dialog-open`
+    // class + `--azure-dialog-clear` (dialog top edge + gap) on <body>.
+    // Lift the mission tracker above the dialog box — and above the
+    // objective pill, which hud.js lifts to the clear line itself — so
+    // the tracker pill and the dialog both read at once.
     if (!document.getElementById('azure-hudf3-dialog-shift')) {
-      const style = document.createElement('style');
-      style.id = 'azure-hudf3-dialog-shift';
-      style.textContent = 'body.azure-dialog-open #hud-fase3-mission { bottom: calc(var(--azure-dialog-clear, 200px) + 48px) !important; }';
-      document.head.appendChild(style);
+      const rule = document.createElement('style');
+      rule.id = 'azure-hudf3-dialog-shift';
+      rule.textContent = 'body.azure-dialog-open #hud-fase3-mission { bottom: calc(var(--azure-dialog-clear, 200px) + 48px) !important; }';
+      document.head.appendChild(rule);
     }
 
-    mounted = true;
+    isMounted = true;
+    fitChips();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', fitChips);
+    }
     return true;
   }
 
@@ -138,7 +167,7 @@ export function createHudFase3() {
       const stages = Math.max(1, Math.round(Number(mission.stages) || 1));
       text = title + ' — ' + stage + '/' + stages;
     }
-    if (missionEl) missionEl.textContent = text;
+    if (missionChip) missionChip.textContent = text;
     return text;
   }
 
@@ -147,8 +176,8 @@ export function createHudFase3() {
   function respectText(value) {
     mount();
     const amount = Math.max(0, Math.round(Number(value) || 0));
-    const text = 'RESPECT ' + amount + ' · ' + respectRank(amount);
-    if (respectEl) respectEl.textContent = text;
+    const text = 'RESPECT ' + amount + ' · ' + rankFor(amount);
+    if (respectChip) respectChip.textContent = text;
     return text;
   }
 
@@ -156,11 +185,11 @@ export function createHudFase3() {
   // is showing restarts the timer instead of stacking flashes.
   function savedFlash() {
     mount();
-    if (!savedEl) return false;
-    savedEl.style.display = '';
+    if (!savedChip) return false;
+    savedChip.style.display = '';
     if (savedTimer !== null) clearTimeout(savedTimer);
     savedTimer = setTimeout(() => {
-      savedEl.style.display = 'none';
+      savedChip.style.display = 'none';
       savedTimer = null;
     }, 2000);
     return true;
@@ -172,20 +201,19 @@ export function createHudFase3() {
     mount();
     let text;
     if (!station) {
-      text = radioEl ? radioEl.textContent : '';
+      text = radioChip ? radioChip.textContent : '';
     } else if (typeof station === 'string') {
       text = station;
     } else {
-      text = '♪ ' + (station.name || 'RADIO') + ' ' + (station.freq || '');
-      text = text.trim();
+      text = ('♪ ' + (station.name || 'RADIO') + ' ' + (station.freq || '')).trim();
     }
-    if (radioEl) radioEl.textContent = text;
+    if (radioChip) radioChip.textContent = text;
     return text;
   }
 
-  // Convenience for Lane E: refresh all four readouts from one state
-  // snapshot { mission, respect, radio }. The SAVED flash is NOT part of
-  // update() — it only fires on an actual save (see below).
+  // Convenience for main.js: refresh the readouts from one state snapshot
+  // { mission, respect, radio }. The SAVED flash is NOT part of update() —
+  // it only fires on an actual save (see below).
   function update(state) {
     if (!state || typeof state !== 'object') return false;
     if ('mission' in state) missionTrackerText(state.mission);
@@ -204,7 +232,7 @@ export function createHudFase3() {
     });
   }
 
-  return { missionTrackerText, respectText, savedFlash, radioText, update, mount };
+  return { missionTrackerText, respectText, savedFlash, radioText, update, mount, fitLayout: fitChips };
 }
 
 export const HudFase3 = createHudFase3();

@@ -1,12 +1,12 @@
-// AZURE BAY — story arc + Missions 6-10 + NPCs (Lane B, Fase 3).
+// AZURE BAY — story arc + Missions 6-10 + NPCs, rewritten round 2.
 //
-// This file is DATA + REGISTRATION ONLY. It edits no other file and it
-// owns no game loop, no rendering and no mission runtime: it hands its
-// mission definitions to Lane A's mission engine (game/src/missions.js)
-// and its lines to the dialog system, and Lane E wires the load order
-// (import this module AFTER missions.js, or call window.Story.registerAll()).
+// This file is DATA + REGISTRATION ONLY. It owns no game loop, no
+// rendering and no mission runtime: it hands its mission definitions
+// to the mission engine (game/src/missions.js) and its lines to the
+// dialog system, and main.js wires the load order (import this module
+// AFTER missions.js, or call window.Story.registerAll()).
 //
-// ---- real contract (missions.js, Lane A — read 20 Nov, not the brief) -----
+// ---- the real contract (missions.js — read, not assumed) -------------------
 //   window.Missions.register(def) where def is:
 //     { id, chapter: 'CH.2 — RISING TIDE', name, giver, start: {x, z},
 //       reward, respect, requires: ['m5'],
@@ -23,17 +23,17 @@
 //     (tryStartNear, radius 6 m); `requires` gates availability.
 //   - Mid-mission lines: the engine shows intro/outro only. Each stage
 //     below ALSO carries a `lines` array ([{speaker, text}]) as plain
-//     data (it survives the JSON clone) for Lane E to show on stage
+//     data (it survives the JSON clone) for main.js to show on stage
 //     advance — the engine itself will not display them yet.
 //   - Dialog: window.Dialog.show(speaker, text, {onClose}) when
 //     dialog.js exists; the engine degrades gracefully without it.
 //   - Wanted/heat: the engine has no heat hook either. M10's 5-star
 //     finale builds from combat kills (main.js already adds heat per
-//     kill) plus the police response; if Lane E wants the finale to
+//     kill) plus the police response; if main.js wants the finale to
 //     OPEN hot, it can call window.__azure.wanted.addHeat(3, 'story')
-//     when starting m10 — that call lives in Lane E, not here.
+//     when starting m10 — that call lives in main.js, not here.
 //
-// ---- street map (Lane A's map in missions.js, matches props.js signs) ------
+// ---- street map (the map in missions.js, matches props.js signs) ----------
 //   OCEAN AVE  — north island, NORTH ring road, z = -190
 //   PALM BLVD  — north island, east-west cross street, z = -140
 //   BRIDGE RD  — the bridge deck, x = 0, z -60..65
@@ -42,12 +42,12 @@
 //   MARINA DR  — south island, SOUTH ring road, z = 190; the pier office
 //                sits at (108, 150), reached off MARINA DR.
 //
-// ---- story arc (continues Lane A's Missions 1-5) ---------------------------
-//   CH.1 LOW TIDE (M1-5, Lane A): the player washes up owing ROOK a
-//     favour and works it off — M5 KING TIDE ends with the ledger
-//     delivered to Rook on OCEAN AVE, the debt paid, and Rook's "you're
-//     not done with Azure Bay yet" hook. The ledger names every dirty
-//     cop and every skimmed dollar in town — which is why CH.2 happens.
+// ---- story arc (continues Missions 1-5) ------------------------------------
+//   CH.1 LOW TIDE (M1-5): the player washes up owing ROOK a favour
+//     and works it off — M5 KING TIDE ends with the ledger delivered
+//     to Rook on OCEAN AVE, the debt paid, and Rook's "you're not done
+//     with Azure Bay yet" hook. The ledger names every dirty cop and
+//     every skimmed dollar in town — which is why CH.2 happens.
 //   CH.2 RISING TIDE (M6-7): Dante "Kingfish" Moreau, who ran the crew
 //     behind the M2 skimming and the M3 bridge shakedown, moves on
 //     Rook's patch to get the ledger back. One last quiet run (M6),
@@ -88,7 +88,7 @@ export const CHAPTERS = [
     title: 'CH.1 — LOW TIDE',
     tagline: 'Fresh off the boat with empty pockets and a name to make.',
     summary:
-      'Missions 1-5 (Lane A): the player washes up owing Rook a favour ' +
+      'Missions 1-5: the player washes up owing Rook a favour ' +
       'and works it off job by job — M5 KING TIDE ends with the ledger ' +
       'delivered to Rook on OCEAN AVE, the debt paid, and the hook for CH.2.',
     missions: ['m1', 'm2', 'm3', 'm4', 'm5'],
@@ -198,13 +198,13 @@ export function say(speaker, text, opts) {
 }
 
 // ---- missions 6-10 ----------------------------------------------------------
-// Reward curve (Lane A: M1 $400/+10, M2 $650/+15, M3 $900/+20, M4
-// $1200/+25, M5 $2000/+40): M6 $400/+15, M7 $650/+25, M8 $900/+35,
-// M9 $1200/+40, M10 $2500/+60. Requires chains the arc: m6 needs m5,
-// then each mission needs the one before it, so the story can only be
-// played in order. Stage text always names its street; stage `lines`
-// are mid-mission dialog data for Lane E (see header — the engine
-// shows intro/outro only).
+// Reward curve (M1 $400/+10, M2 $650/+15, M3 $900/+20, M4 $1200/+25,
+// M5 $2000/+40): M6 $400/+15, M7 $650/+25, M8 $900/+35, M9 $1200/+40,
+// M10 $2500/+60. Requires chains the arc: m6 needs m5, then each
+// mission needs the one before it, so the story can only be played in
+// order. Stage text always names its street; stage `lines` are
+// mid-mission dialog data for main.js (see header — the engine shows
+// intro/outro only).
 export const MISSIONS = [
   {
     id: 'm6',
@@ -225,29 +225,25 @@ export const MISSIONS = [
     ],
     stages: [
       {
-        type: 'goto', x: 30, z: -190, radius: 6,
-        text: 'Meet Rook on OCEAN AVE',
+        type: 'goto', text: 'Meet Rook on OCEAN AVE', x: 30, z: -190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'You want work, kid? Start small. A package, a drive, no questions.' },
         ],
       },
       {
-        type: 'collect', x: -40, z: -140, radius: 6,
-        text: 'Pick up the package on PALM BLVD',
+        type: 'collect', text: 'Pick up the package on PALM BLVD', x: -40, z: -140, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Palm Blvd, blue dumpster by the palms. Do not let anyone see you take it.' },
         ],
       },
       {
-        type: 'deliver', x: 52, z: 147, radius: 6,
-        text: "Deliver the package to Eddie's garage on CORAL WAY",
+        type: 'deliver', text: "Deliver the package to Eddie's garage on CORAL WAY", x: 52, z: 147, radius: 6,
         lines: [
           { speaker: 'EDDIE', text: "Rook sends his runners, I fix their rides. This one's clean, kid." },
         ],
       },
       {
-        type: 'goto', x: 60, z: 190, radius: 6,
-        text: 'Check in with Silas on MARINA DR',
+        type: 'goto', text: 'Check in with Silas on MARINA DR', x: 60, z: 190, radius: 6,
         lines: [
           { speaker: 'SILAS', text: "Kingfish's boys are asking questions at every bar on the south island. Keep your head down — for now." },
         ],
@@ -273,29 +269,25 @@ export const MISSIONS = [
     ],
     stages: [
       {
-        type: 'goto', x: -52, z: 97, radius: 8,
-        text: 'Go to the docks on BAY ST',
+        type: 'goto', text: 'Go to the docks on BAY ST', x: -52, z: 97, radius: 8,
         lines: [
           { speaker: 'KINGFISH', text: "So Rook's got himself a new errand boy. The bay pays ME, kid. Remember that." },
         ],
       },
       {
-        type: 'combat', x: -40, z: 90, radius: 12, kills: 3,
-        text: "Deal with Kingfish's collectors on BAY ST (0/3)",
+        type: 'combat', text: "Deal with Kingfish's collectors on BAY ST (0/3)", x: -40, z: 90, radius: 12, kills: 3,
         lines: [
           { speaker: 'KINGFISH', text: 'You think a pistol makes you somebody? My boys collect — or they bury.' },
         ],
       },
       {
-        type: 'collect', x: -30, z: 90, radius: 6,
-        text: 'Collect the skimmed cash on BAY ST',
+        type: 'collect', text: 'Collect the skimmed cash on BAY ST', x: -30, z: 90, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Every dollar they skimmed off my suppliers — pick it up, all of it. Do not leave a cent on that street.' },
         ],
       },
       {
-        type: 'deliver', x: 30, z: -190, radius: 6,
-        text: 'Bring the cash back to Rook on OCEAN AVE',
+        type: 'deliver', text: 'Bring the cash back to Rook on OCEAN AVE', x: 30, z: -190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'Every dollar back. Kingfish just paid for his own lesson.' },
         ],
@@ -321,29 +313,25 @@ export const MISSIONS = [
     ],
     stages: [
       {
-        type: 'goto', x: 52, z: 147, radius: 6,
-        text: "Meet Eddie at his garage on CORAL WAY",
+        type: 'goto', text: "Meet Eddie at his garage on CORAL WAY", x: 52, z: 147, radius: 6,
         lines: [
           { speaker: 'EDDIE', text: "Kingfish wants my shop? Then we give him a car he won't forget. Take the Comet — she's fast and she's loud." },
         ],
       },
       {
-        type: 'drive', x: 0, z: -90, radius: 8,
-        text: 'Drive the getaway Comet across BRIDGE RD to the north island',
+        type: 'drive', text: 'Drive the getaway Comet across BRIDGE RD to the north island', x: 0, z: -90, radius: 8,
         lines: [
           { speaker: 'EDDIE', text: 'Bridge is the only way over. Do not stop for anyone — not even the law.' },
         ],
       },
       {
-        type: 'combat', x: 60, z: 190, radius: 12, kills: 3,
-        text: "Hold off Kingfish's crew on MARINA DR (0/3)",
+        type: 'combat', text: "Hold off Kingfish's crew on MARINA DR (0/3)", x: 60, z: 190, radius: 12, kills: 3,
         lines: [
           { speaker: 'SILAS', text: "They're coming in from the pier! Hold the line, kid — the boat's almost loaded!" },
         ],
       },
       {
-        type: 'deliver', x: -40, z: -140, radius: 6,
-        text: 'Deliver the Comet to the safehouse on PALM BLVD',
+        type: 'deliver', text: 'Deliver the Comet to the safehouse on PALM BLVD', x: -40, z: -140, radius: 6,
         lines: [
           { speaker: 'EDDIE', text: 'Bring her home to Palm Blvd in one piece — she is the fastest thing I ever built, and she is yours to keep safe.' },
         ],
@@ -369,29 +357,25 @@ export const MISSIONS = [
     ],
     stages: [
       {
-        type: 'goto', x: -48, z: 90, radius: 6,
-        text: 'Meet Detective Calloway on BAY ST',
+        type: 'goto', text: 'Meet Detective Calloway on BAY ST', x: -48, z: 90, radius: 6,
         lines: [
           { speaker: 'CALLOWAY', text: "I want Kingfish's payoff book — and you're the only one who can get close to it." },
         ],
       },
       {
-        type: 'collect', x: 108, z: 150, radius: 6,
-        text: 'Steal the payoff book from the marina office on MARINA DR',
+        type: 'collect', text: 'Steal the payoff book from the marina office on MARINA DR', x: 108, z: 150, radius: 6,
         lines: [
           { speaker: 'SILAS', text: "Book's in the office by the pier. In and out, quiet — Kingfish's boys are everywhere tonight." },
         ],
       },
       {
-        type: 'combat', x: 40, z: 140, radius: 12, kills: 3,
-        text: 'Survive the ambush on CORAL WAY (0/3)',
+        type: 'combat', text: 'Survive the ambush on CORAL WAY (0/3)', x: 40, z: 140, radius: 12, kills: 3,
         lines: [
           { speaker: 'KINGFISH', text: 'You brought the LAW to my docks?! Nobody crosses Kingfish and walks away!' },
         ],
       },
       {
-        type: 'deliver', x: -48, z: 90, radius: 6,
-        text: 'Deliver the payoff book to Calloway on BAY ST',
+        type: 'deliver', text: 'Deliver the payoff book to Calloway on BAY ST', x: -48, z: 90, radius: 6,
         lines: [
           { speaker: 'CALLOWAY', text: "Bring the book to me on Bay St — and do not let Kingfish's boys see you carry it." },
         ],
@@ -417,29 +401,25 @@ export const MISSIONS = [
     ],
     stages: [
       {
-        type: 'goto', x: 60, z: 190, radius: 8,
-        text: 'Confront Kingfish at the marina on MARINA DR',
+        type: 'goto', text: 'Confront Kingfish at the marina on MARINA DR', x: 60, z: 190, radius: 8,
         lines: [
           { speaker: 'KINGFISH', text: 'The whole bay is mine, kid — the docks, the bridge, the streets. You should have stayed a runner.' },
         ],
       },
       {
-        type: 'combat', x: 60, z: 190, radius: 14, kills: 4,
-        text: "Take down Kingfish's crew on MARINA DR (0/4)",
+        type: 'combat', text: "Take down Kingfish's crew on MARINA DR (0/4)", x: 60, z: 190, radius: 14, kills: 4,
         lines: [
           { speaker: 'KINGFISH', text: 'FINE. You want the bay? Come and TAKE it!' },
         ],
       },
       {
-        type: 'drive', x: 0, z: -140, radius: 8,
-        text: 'Escape across BRIDGE RD — lose the cops, lose the heli',
+        type: 'drive', text: 'Escape across BRIDGE RD — lose the cops, lose the heli', x: 0, z: -140, radius: 8,
         lines: [
           { speaker: 'CALLOWAY', text: "Every unit in the bay is on you — five stars, air support. Get across that bridge and DON'T stop!" },
         ],
       },
       {
-        type: 'goto', x: 30, z: -190, radius: 6,
-        text: 'Reach the safehouse on OCEAN AVE',
+        type: 'goto', text: 'Reach the safehouse on OCEAN AVE', x: 30, z: -190, radius: 6,
         lines: [
           { speaker: 'ROOK', text: 'You did it, kid. Kingfish is finished — the bay is YOURS now.' },
         ],
@@ -451,10 +431,26 @@ export const MISSIONS = [
 // ---- registration -----------------------------------------------------------
 // Idempotent: each mission id registers at most once per page load, even
 // if registerAll() is called twice (import + 'missions-ready' event, or
-// Lane E calling it explicitly after importing missions.js). The engine
+// main.js calling it explicitly after importing missions.js). The engine
 // itself also refuses duplicate ids, so a second call is harmless either
 // way — this set just keeps window.Story.registered truthful.
 const registeredIds = new Set();
+
+// A def is only handed to the engine when it is shaped like a mission
+// (string id, at least one stage, every stage with a known type and
+// finite coordinates). A malformed def is skipped and reported instead
+// of registering half-broken and failing mid-mission.
+const KNOWN_STAGE_TYPES = new Set(['goto', 'drive', 'combat', 'collect', 'deliver']);
+
+function isWellFormed(def) {
+  if (!def || typeof def.id !== 'string' || !def.id) return false;
+  if (!Array.isArray(def.stages) || def.stages.length === 0) return false;
+  for (const stage of def.stages) {
+    if (!stage || !KNOWN_STAGE_TYPES.has(stage.type)) return false;
+    if (!Number.isFinite(stage.x) || !Number.isFinite(stage.z)) return false;
+  }
+  return true;
+}
 
 export function registerAll() {
   if (typeof window === 'undefined') return [];
@@ -462,6 +458,7 @@ export function registerAll() {
   const done = [];
   for (const def of MISSIONS) {
     if (registeredIds.has(def.id)) continue;
+    if (!isWellFormed(def)) continue;
     if (window.Missions.register(def)) {
       registeredIds.add(def.id);
       done.push(def.id);
@@ -470,8 +467,9 @@ export function registerAll() {
   return done;
 }
 
-// Auto-register on load when Lane A is already present; otherwise wait for
-// Lane A / Lane E to announce itself. The listener is registered once.
+// Auto-register on load when the mission engine is already present;
+// otherwise wait for main.js to announce itself. The listener is
+// registered once.
 if (typeof window !== 'undefined') {
   registerAll();
   if (!registeredIds.size && typeof window.addEventListener === 'function') {
@@ -483,7 +481,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Public surface for Lane A / Lane E / the console.
+// Public surface for main.js / the console.
 if (typeof window !== 'undefined') {
   window.Story = {
     CHAPTERS,

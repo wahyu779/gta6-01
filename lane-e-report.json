@@ -1,0 +1,255 @@
+{
+  "playtest": {
+    "menu": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "cash": 500,
+      "health": 100,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [
+          "m1"
+        ],
+        "completed": [],
+        "active": null,
+        "activeStage": null,
+        "radioStation": "naranja",
+        "radioText": "\u266a RADIO NARANJA 99.1 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "No active mission",
+        "objectiveText": "Explore Azure Bay",
+        "dialogOpen": false,
+        "dialogText": null,
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    },
+    "traffic": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "cash": 500,
+      "health": 100,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [
+          "m1"
+        ],
+        "completed": [],
+        "active": null,
+        "activeStage": null,
+        "radioStation": "naranja",
+        "radioText": "\u266a RADIO NARANJA 99.1 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "No active mission",
+        "objectiveText": "Explore Azure Bay",
+        "dialogOpen": false,
+        "dialogText": null,
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    },
+    "chase": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 3,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": false,
+      "heliY": null,
+      "cash": 500,
+      "health": 99.9523999999985,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [],
+        "completed": [],
+        "active": "m1",
+        "activeStage": 0,
+        "radioStation": "baybeats",
+        "radioText": "\u266a BAY BEATS 88.3 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "M1 \u2014 HOOK AND CHAIN \u2014 1/3",
+        "objectiveText": "M1 \u2014 HOOK AND CHAIN: Meet Rook on PALM BLVD",
+        "dialogOpen": false,
+        "dialogText": "ROOKTake this package across BRIDGE RD to the marina pier on MARINA DR. Walk it, drive it \u2014 just don't drop it in the bay.ENTER / KLIK \u2014 LANJUT",
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    },
+    "combat": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 2,
+      "policeCars": 2,
+      "officers": 2,
+      "heli": false,
+      "heliY": null,
+      "cash": 500,
+      "health": 85.61679999999681,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [],
+        "completed": [],
+        "active": "m1",
+        "activeStage": 0,
+        "radioStation": "naranja",
+        "radioText": "\u266a RADIO NARANJA 99.1 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "M1 \u2014 HOOK AND CHAIN \u2014 1/3",
+        "objectiveText": "M1 \u2014 HOOK AND CHAIN: Meet Rook on PALM BLVD",
+        "dialogOpen": true,
+        "dialogText": "ROOK\nYou washed up on my shore owing me a favour, kid. Time to pay it off \u2014 one small job, no questions.\nENTER / KLIK \u2014 LANJUT",
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    },
+    "heli": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 5,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": true,
+      "heliY": 9.5,
+      "cash": 500,
+      "health": 92.47850000000336,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [],
+        "completed": [],
+        "active": "m1",
+        "activeStage": 1,
+        "radioStation": "azure",
+        "radioText": "\u266a AZURE FM 104.7 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "M1 \u2014 HOOK AND CHAIN \u2014 2/3",
+        "objectiveText": "M1 \u2014 HOOK AND CHAIN: Drive the package across BRIDGE RD",
+        "dialogOpen": false,
+        "dialogText": "ROOKTake this package across BRIDGE RD to the marina pier on MARINA DR. Walk it, drive it \u2014 just don't drop it in the bay.ENTER / KLIK \u2014 LANJUT",
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    },
+    "city": {
+      "traffic": 8,
+      "peds": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "cash": 500,
+      "health": 100,
+      "respect": 0,
+      "fase3": {
+        "modules": true,
+        "available": [
+          "m1"
+        ],
+        "completed": [],
+        "active": null,
+        "activeStage": null,
+        "radioStation": "naranja",
+        "radioText": "\u266a RADIO NARANJA 99.1 FM",
+        "respectText": "RESPECT 0 \u00b7 ROOKIE",
+        "missionText": "No active mission",
+        "objectiveText": "Explore Azure Bay",
+        "dialogOpen": false,
+        "dialogText": null,
+        "shopOpen": false,
+        "rackOpen": false,
+        "npcs": 5,
+        "hasSave": false
+      }
+    }
+  },
+  "playtest_errors": [],
+  "expectation_failures": [],
+  "e2e": {
+    "m1_started": true,
+    "m1_intro_line": "ROOK\nYou washed up on my shore owing me a favour, kid. Time ",
+    "dialog_closed_after_intro": true,
+    "stage_after_intro": 1,
+    "entered_car": true,
+    "stage_after_drive": 2,
+    "m1_completed": true,
+    "cash_after_m1": 900,
+    "respect_after_m1": 10,
+    "outro_dialog_open": true,
+    "dialog_closed_after_outro": true,
+    "m2_now_available": [
+      "m2"
+    ],
+    "safehouse_healed": true,
+    "safehouse_rack_open": true,
+    "save_exists_after_safehouse": true,
+    "rack_closed": true,
+    "radio_after_R1": "azure",
+    "radio_after_R2": "baybeats",
+    "radio_hud_after_R2": "\u266a BAY BEATS 88.3 FM",
+    "armory_open": true,
+    "pistol_owned": true,
+    "cash_after_pistol": 650,
+    "garage_open": true,
+    "garage_title": "BAY CUSTOMS",
+    "npc_dialog_open": true,
+    "npc_dialog_line": "SILAS\nShh. Walls have ears, boats have radios. Ask quick, pa",
+    "menu_open": true,
+    "menu_body": "ACTIVE\nNo active mission \u2014 pick a job below.\nAVAILABLE\n[1] M2 \u2014 SALT IN THE WOUND CH.1 \u2014 LOW TIDE\nFrom Rook \u2022 $650 \u2022 +15 respect \u2022 4 stages\nCOMPLETED (1)\nM1",
+    "menu_closed": true,
+    "cash_after_reload": 650,
+    "health_after_reload": 100,
+    "respect_after_reload": 10,
+    "completed_after_reload": [
+      "m1"
+    ]
+  },
+  "e2e_errors": [],
+  "shots": {
+    "combat.jpg": {
+      "bytes": 115351,
+      "over_cap": false,
+      "query": "?shot=combat"
+    },
+    "chase.jpg": {
+      "bytes": 110063,
+      "over_cap": false,
+      "query": "?shot=chase"
+    },
+    "heli.jpg": {
+      "bytes": 117196,
+      "over_cap": false,
+      "query": "?shot=heli"
+    },
+    "city.jpg": {
+      "bytes": 125081,
+      "over_cap": false,
+      "query": "?shot=city"
+    }
+  },
+  "shot_errors": []
+}

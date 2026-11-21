@@ -1,0 +1,447 @@
+{
+  "e2e": {
+    "boot": {
+      "available": [
+        "m6"
+      ],
+      "completed": [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5"
+      ],
+      "resumed": true,
+      "registered_m6_m10": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "m1": {
+      "completed": true,
+      "skipped": "already in checkpoint"
+    },
+    "m2": {
+      "completed": true,
+      "skipped": "already in checkpoint"
+    },
+    "ammo_buy": {
+      "skipped": "SMG already owned (checkpoint)"
+    },
+    "m3": {
+      "completed": true,
+      "skipped": "already in checkpoint"
+    },
+    "m4": {
+      "completed": true,
+      "skipped": "already in checkpoint"
+    },
+    "m5": {
+      "completed": true,
+      "skipped": "already in checkpoint"
+    },
+    "m6": {
+      "intro_first_line": "ROOK\nThat ledger you brought me? It names Kingfish \u2014 every dollar he skimmed, every cop he bought. Now he wants it back.\nENTER / KLIK \u2014 LANJUT",
+      "stage_after_intro": 1,
+      "cash_before": 4690,
+      "respect_before": 110,
+      "reward": 400,
+      "respect_gain": 15,
+      "stages": 4,
+      "stage_log": [
+        {
+          "stage": 1,
+          "type": "collect",
+          "text": "Pick up the package on PALM BLVD",
+          "result": "stage->2",
+          "stage_lines": [
+            "EDDIE | Rook sends his runners, I fix their rides. This one's clean, kid. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 2,
+          "type": "deliver",
+          "text": "Deliver the package to Eddie's garage on CORAL WAY",
+          "result": "stage->3",
+          "stage_lines": [
+            "SILAS | Kingfish's boys are asking questions at every bar on the south island. Keep your head down \u2014 for now. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 3,
+          "type": "goto",
+          "text": "Check in with Silas on MARINA DR",
+          "result": "completed",
+          "stage_lines": [
+            "ROOK | Clean run. The bay's starting to know your name. | ENTER / KLIK \u2014 LANJUT",
+            "SILAS | Word travels fast on this bay. Kingfish is asking about Rook's new runner. That is you, kid. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        }
+      ],
+      "completed": true,
+      "cash_after": 5090,
+      "respect_after": 125,
+      "cash_delta": 400,
+      "respect_delta": 15,
+      "outro_first_line": null,
+      "outro_dialog_open": false
+    },
+    "m7": {
+      "intro_first_line": "ROOK\nKingfish's boys are shaking down my bar's suppliers on BAY ST. Same crew that skimmed my drops in M2 \u2014 time they learned whose street this is.\nENTER / KLIK",
+      "stage_after_intro": 0,
+      "cash_before": 5090,
+      "respect_before": 125,
+      "reward": 650,
+      "respect_gain": 25,
+      "stages": 4,
+      "stage_log": [
+        {
+          "stage": 0,
+          "type": "goto",
+          "text": "Go to the docks on BAY ST",
+          "result": "stage->1",
+          "stage_lines": [
+            "KINGFISH | You think a pistol makes you somebody? My boys collect \u2014 or they bury. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 1,
+          "type": "combat",
+          "text": "Deal with Kingfish's collectors on BAY ST (0/3)",
+          "combat": {
+            "seconds": 408.9,
+            "rounds_used": 33,
+            "max_officers_alive": 2,
+            "via": "stage advanced 1->2"
+          },
+          "result": "stage->2",
+          "stage_lines": [
+            "ROOK | Every dollar they skimmed off my suppliers \u2014 pick it up, all of it. Do not leave a cent on that street. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 2,
+          "type": "collect",
+          "text": "Collect the skimmed cash on BAY ST",
+          "result": "stage->3",
+          "stage_lines": [
+            "ROOK | Every dollar back. Kingfish just paid for his own lesson. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 3,
+          "type": "deliver",
+          "text": "Bring the cash back to Rook on OCEAN AVE",
+          "result": "completed",
+          "stage_lines": [
+            "ROOK | The docks are quiet tonight. Kingfish will not forget this \u2014 neither will I. | ENTER / KLIK \u2014 LANJUT",
+            "KINGFISH | You took my boys and my money, kid. The bay pays ME \u2014 and now YOU owe me. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        }
+      ],
+      "completed": true,
+      "cash_after": 5740,
+      "respect_after": 150,
+      "cash_delta": 650,
+      "respect_delta": 25,
+      "outro_first_line": null,
+      "outro_dialog_open": false
+    },
+    "m8": {
+      "intro_first_line": "EDDIE\nKingfish torched my cousin's shop last night. Tonight we answer \u2014 with horsepower.\nENTER / KLIK \u2014 LANJUT",
+      "stage_after_intro": 1,
+      "cash_before": 5740,
+      "respect_before": 150,
+      "reward": 900,
+      "respect_gain": 35,
+      "stages": 4,
+      "stage_log": [
+        {
+          "stage": 1,
+          "type": "drive",
+          "text": "Drive the getaway Comet across BRIDGE RD to the north island",
+          "entered_car": true,
+          "stage_lines": [
+            "SILAS | They're coming in from the pier! Hold the line, kid \u2014 the boat's almost loaded! | ENTER / KLIK \u2014 LANJUT"
+          ],
+          "exited_car": true,
+          "result": "stage->2"
+        },
+        {
+          "stage": 2,
+          "type": "combat",
+          "text": "Hold off Kingfish's crew on MARINA DR (0/3)",
+          "combat": {
+            "seconds": 527.8,
+            "rounds_used": 32,
+            "max_officers_alive": 2,
+            "via": "stage advanced 2->3"
+          },
+          "result": "stage->3",
+          "stage_lines": [
+            "EDDIE | Bring her home to Palm Blvd in one piece \u2014 she is the fastest thing I ever built, and she is yours to keep safe. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 3,
+          "type": "deliver",
+          "text": "Deliver the Comet to the safehouse on PALM BLVD",
+          "result": "completed",
+          "stage_lines": [
+            "EDDIE | She's in one piece. You're learning, kid. The bay is yours to take. | ENTER / KLIK \u2014 LANJUT",
+            "SILAS | The Comet made it. The whole marina saw it, kid. The whole bay will hear it. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        }
+      ],
+      "completed": true,
+      "cash_after": 6640,
+      "respect_after": 185,
+      "cash_delta": 900,
+      "respect_delta": 35,
+      "outro_first_line": null,
+      "outro_dialog_open": false
+    },
+    "m9": {
+      "intro_first_line": "CALLOWAY\nOff the record, kid. That ledger you gave Rook names me as the one cop Kingfish could NOT buy. So now he wants me gone too.\nENTER / KLIK \u2014 LANJUT",
+      "stage_after_intro": 1,
+      "cash_before": 6640,
+      "respect_before": 185,
+      "reward": 1200,
+      "respect_gain": 40,
+      "stages": 4,
+      "stage_log": [
+        {
+          "stage": 1,
+          "type": "collect",
+          "text": "Steal the payoff book from the marina office on MARINA DR",
+          "result": "stage->2",
+          "stage_lines": [
+            "KINGFISH | You brought the LAW to my docks?! Nobody crosses Kingfish and walks away! | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 2,
+          "type": "combat",
+          "text": "Survive the ambush on CORAL WAY (0/3)",
+          "combat": {
+            "seconds": 453.3,
+            "rounds_used": 29,
+            "max_officers_alive": 2,
+            "via": "stage advanced 2->3"
+          },
+          "result": "stage->3",
+          "stage_lines": [
+            "CALLOWAY | Bring the book to me on Bay St \u2014 and do not let Kingfish's boys see you carry it. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 3,
+          "type": "deliver",
+          "text": "Deliver the payoff book to Calloway on BAY ST",
+          "result": "completed",
+          "stage_lines": [
+            "CALLOWAY | This book buries him. You did the bay a favour tonight \u2014 don't expect a medal, expect a target on your back. | ENTER / KLIK \u2014 LANJUT",
+            "ROOK | A cop, kid? Careful. The bay remembers who it owes \u2014 and who it owns. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        }
+      ],
+      "completed": true,
+      "cash_after": 7840,
+      "respect_after": 225,
+      "cash_delta": 1200,
+      "respect_delta": 40,
+      "outro_first_line": null,
+      "outro_dialog_open": false
+    },
+    "m10": {
+      "intro_first_line": "ROOK\nTonight it ends. Kingfish, his crew, all of it \u2014 at the marina. The payoff book gave Calloway the warrants; we give him the arrest.\nENTER / KLIK \u2014 LANJUT",
+      "stage_after_intro": 0,
+      "cash_before": 7840,
+      "respect_before": 225,
+      "reward": 2500,
+      "respect_gain": 60,
+      "stages": 4,
+      "stage_log": [
+        {
+          "stage": 0,
+          "type": "goto",
+          "text": "Confront Kingfish at the marina on MARINA DR",
+          "result": "stage->1",
+          "stage_lines": [
+            "KINGFISH | FINE. You want the bay? Come and TAKE it! | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 1,
+          "type": "combat",
+          "text": "Take down Kingfish's crew on MARINA DR (0/4)",
+          "wanted_at_combat_start": 5,
+          "heli_at_combat_start": true,
+          "combat": {
+            "seconds": 657.9,
+            "rounds_used": 38,
+            "max_officers_alive": 2,
+            "via": "stage advanced 1->2"
+          },
+          "wanted_after_combat": 5,
+          "heli_after_combat": true,
+          "result": "stage->2",
+          "stage_lines": [
+            "CALLOWAY | Every unit in the bay is on you \u2014 five stars, air support. Get across that bridge and DON'T stop! | ENTER / KLIK \u2014 LANJUT"
+          ]
+        },
+        {
+          "stage": 2,
+          "type": "drive",
+          "text": "Escape across BRIDGE RD \u2014 lose the cops, lose the heli",
+          "entered_car": true,
+          "wanted_before_drive": 5,
+          "heli_before_drive": true,
+          "stage_lines": [
+            "ROOK | You did it, kid. Kingfish is finished \u2014 the bay is YOURS now. | ENTER / KLIK \u2014 LANJUT"
+          ],
+          "exited_car": true,
+          "result": "stage->3"
+        },
+        {
+          "stage": 3,
+          "type": "goto",
+          "text": "Reach the safehouse on OCEAN AVE",
+          "result": "completed",
+          "stage_lines": [
+            "ROOK | CH.4 \u2014 STORM SURGE complete. Kingfish is finished, the ledger is ours, and the bay has a new name on it. Yours. | ENTER / KLIK \u2014 LANJUT",
+            "ROOK | Azure Bay is yours now, kid. CH.1 to CH.4 \u2014 the whole arc, done. | ENTER / KLIK \u2014 LANJUT"
+          ]
+        }
+      ],
+      "completed": true,
+      "cash_after": 10340,
+      "respect_after": 285,
+      "cash_delta": 2500,
+      "respect_delta": 60,
+      "outro_first_line": null,
+      "outro_dialog_open": false
+    },
+    "final": {
+      "completed": [
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5",
+        "m6",
+        "m7",
+        "m8",
+        "m9",
+        "m10"
+      ],
+      "cash": 10340,
+      "respect": 285,
+      "available": []
+    }
+  },
+  "e2e_errors": [],
+  "resume": {
+    "resume_probes": {
+      "bad_id": {
+        "ok": false,
+        "reason": "not-found",
+        "mission": null
+      },
+      "bad_stage": {
+        "ok": false,
+        "reason": "bad-stage",
+        "mission": null
+      },
+      "locked": {
+        "ok": false,
+        "reason": "locked",
+        "mission": null
+      }
+    },
+    "m1": {
+      "completed": true
+    },
+    "m2_stage1": {
+      "stage_after_intro": 1,
+      "save_active": {
+        "id": "m2",
+        "title": "M2 \u2014 SALT IN THE WOUND",
+        "stage": 1,
+        "stages": 4,
+        "kills": 0,
+        "collected": 0
+      }
+    },
+    "after_reload": {
+      "active": {
+        "id": "m2",
+        "stageIndex": 1,
+        "kills": 0,
+        "pedKills": 0,
+        "collected": 0,
+        "stageText": "Pick up the stash on CORAL WAY (west)",
+        "stageType": "collect"
+      },
+      "hud_objective": "M2 \u2014 SALT IN THE WOUND: Pick up the stash on CORAL WAY (west)",
+      "save_active": {
+        "id": "m2",
+        "title": "M2 \u2014 SALT IN THE WOUND",
+        "stage": 1,
+        "stages": 4,
+        "kills": 0,
+        "collected": 0
+      },
+      "completed": [
+        "m1"
+      ]
+    },
+    "m2_continued": {
+      "wait_result": "stage->2",
+      "stage_after_target": 2
+    },
+    "m3_partial": {
+      "kills_before_reload": 1,
+      "save_active": {
+        "id": "m3",
+        "title": "M3 \u2014 CROSS CURRENT",
+        "stage": 1,
+        "stages": 3,
+        "kills": 1,
+        "collected": 0
+      }
+    },
+    "m3_after_reload": {
+      "active": {
+        "id": "m3",
+        "stageIndex": 1,
+        "kills": 1,
+        "pedKills": 0,
+        "collected": 0,
+        "stageText": "Clear the bridge crew on BRIDGE RD (0/3)",
+        "stageType": "combat"
+      },
+      "save_active": {
+        "id": "m3",
+        "title": "M3 \u2014 CROSS CURRENT",
+        "stage": 1,
+        "stages": 3,
+        "kills": 1,
+        "collected": 0
+      }
+    },
+    "m3_finished_after_resume": {
+      "wait_result": "stage->2",
+      "combat": {
+        "seconds": 142.1,
+        "rounds_used": 19,
+        "max_officers_alive": 2,
+        "via": "stage advanced 1->2"
+      }
+    }
+  },
+  "resume_errors": []
+}

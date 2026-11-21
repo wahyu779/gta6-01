@@ -1,0 +1,372 @@
+{
+  "radio_in_car": {
+    "errors": [],
+    "before": {
+      "debug": {
+        "supported": true,
+        "state": "not-created",
+        "currentTime": 0,
+        "masterGain": 0,
+        "schedulerRunning": false,
+        "stepsScheduled": 0,
+        "rms": null
+      },
+      "station": "baybeats",
+      "label": "BAY BEATS 88.3 FM",
+      "chip": "\u266a BAY BEATS 88.3 FM",
+      "dialogOpen": false
+    },
+    "after_click": [
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 0.8010884353741496,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 8,
+          "rms": 0.015556183908275381
+        },
+        "station": "baybeats",
+        "label": "BAY BEATS 88.3 FM",
+        "chip": "\u266a BAY BEATS 88.3 FM",
+        "dialogOpen": false
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 0.8126984126984127,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 8,
+          "rms": 0.011118454625718458
+        },
+        "station": "baybeats",
+        "label": "BAY BEATS 88.3 FM",
+        "chip": "\u266a BAY BEATS 88.3 FM",
+        "dialogOpen": false
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 0.8214058956916099,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 8,
+          "rms": 0.006560072677023634
+        },
+        "station": "baybeats",
+        "label": "BAY BEATS 88.3 FM",
+        "chip": "\u266a BAY BEATS 88.3 FM",
+        "dialogOpen": false
+      }
+    ],
+    "after_R": [
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 6.6321995464852606,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 29,
+          "rms": 0
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM",
+        "dialogOpen": false
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 38.81215419501134,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 178,
+          "rms": 0
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM",
+        "dialogOpen": false
+      }
+    ],
+    "rects": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2605\u2605\u2605\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 364,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 444,
+        "w": 126,
+        "h": 40,
+        "visible": true,
+        "text": "72 km/h"
+      },
+      "hud-ammo": {
+        "x": 623,
+        "y": 217,
+        "w": 161,
+        "h": 31,
+        "visible": true,
+        "text": "PISTOL 11/48"
+      },
+      "hud-objective": {
+        "x": 200,
+        "y": 424,
+        "w": 400,
+        "h": 60,
+        "visible": true,
+        "text": "M1 \u2014 HOOK AND CHAIN: Meet Rook on PALM BLVD"
+      },
+      "hud-fase3-radio": {
+        "x": 528,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 252,
+        "y": 412,
+        "w": 295,
+        "h": 32,
+        "visible": true,
+        "text": "M1 \u2014 HOOK AND CHAIN \u2014 1/3"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "ROOKTake this package across BRIDGE RD to the marina pier on MARINA DR. Walk it, drive it "
+      },
+      "minimap": {
+        "x": 560,
+        "y": 260,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "overlaps": [
+      {
+        "a": "hud-fase3-mission",
+        "b": "hud-objective",
+        "area": 5900,
+        "ix": 295,
+        "iy": 20
+      },
+      {
+        "a": "hud-objective",
+        "b": "minimap",
+        "area": 2400,
+        "ix": 40,
+        "iy": 60
+      }
+    ]
+  },
+  "radio_on_foot": {
+    "errors": [],
+    "before": {
+      "debug": {
+        "supported": true,
+        "state": "not-created",
+        "currentTime": 0,
+        "masterGain": 0,
+        "schedulerRunning": false,
+        "stepsScheduled": 0,
+        "rms": null
+      },
+      "station": "naranja",
+      "label": "RADIO NARANJA 99.1 FM",
+      "chip": "\u266a RADIO NARANJA 99.1 FM",
+      "dialogOpen": false
+    },
+    "after_click": {
+      "debug": {
+        "supported": true,
+        "state": "running",
+        "currentTime": 0.8620408163265306,
+        "masterGain": 0.1599999964237213,
+        "schedulerRunning": true,
+        "stepsScheduled": 7,
+        "rms": 0.004734062360758134
+      },
+      "station": "naranja",
+      "label": "RADIO NARANJA 99.1 FM",
+      "chip": "\u266a RADIO NARANJA 99.1 FM",
+      "dialogOpen": false
+    },
+    "after_R": {
+      "debug": {
+        "supported": true,
+        "state": "running",
+        "currentTime": 6.922448979591837,
+        "masterGain": 0.1599999964237213,
+        "schedulerRunning": true,
+        "stepsScheduled": 40,
+        "rms": 0
+      },
+      "station": "naranja",
+      "label": "RADIO NARANJA 99.1 FM",
+      "chip": "\u266a RADIO NARANJA 99.1 FM",
+      "dialogOpen": false
+    },
+    "rects": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2605\u2605\u2606\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 364,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 444,
+        "w": 111,
+        "h": 40,
+        "visible": true,
+        "text": "0 km/h"
+      },
+      "hud-ammo": {
+        "x": 623,
+        "y": 217,
+        "w": 161,
+        "h": 31,
+        "visible": true,
+        "text": "PISTOL 11/48"
+      },
+      "hud-objective": {
+        "x": 318,
+        "y": 446,
+        "w": 163,
+        "h": 38,
+        "visible": true,
+        "text": "Explore Azure Bay"
+      },
+      "hud-fase3-radio": {
+        "x": 528,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 310,
+        "y": 412,
+        "w": 181,
+        "h": 32,
+        "visible": true,
+        "text": "No active mission"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": null,
+      "minimap": {
+        "x": 560,
+        "y": 260,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "overlaps": []
+  },
+  "hud_dialog_lift": {
+    "error": "TimeoutError('Page.screenshot: Timeout 120000ms exceeded.\\nCall log:\\n  - taking page screenshot\\n  - waiting for fonts to load...\\n  - fonts loaded\\n')"
+  }
+}

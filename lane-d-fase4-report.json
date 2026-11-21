@@ -1,0 +1,32 @@
+{
+  "shots": {
+    "chase": {
+      "shot": "chase",
+      "error": "TargetClosedError('Page.evaluate: Target page, context or browser has been closed')",
+      "errors": [],
+      "overlaps": [],
+      "overflowX": []
+    },
+    "combat": {
+      "shot": "combat",
+      "error": "TargetClosedError('Browser.new_page: Target page, context or browser has been closed')",
+      "errors": [],
+      "overlaps": [],
+      "overflowX": []
+    },
+    "heli": {
+      "shot": "heli",
+      "error": "TargetClosedError('Browser.new_page: Target page, context or browser has been closed')",
+      "errors": [],
+      "overlaps": [],
+      "overflowX": []
+    },
+    "city": {
+      "shot": "city",
+      "error": "TargetClosedError('Browser.new_page: Target page, context or browser has been closed')",
+      "errors": [],
+      "overlaps": [],
+      "overflowX": []
+    }
+  }
+}

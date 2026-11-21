@@ -1,0 +1,98 @@
+{
+  "playtest": {
+    "menu": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliPos": null,
+      "health": null
+    },
+    "traffic": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliPos": null,
+      "health": null
+    },
+    "chase": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 3,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": false,
+      "heliPos": null,
+      "health": null
+    },
+    "combat": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 2,
+      "policeCars": 2,
+      "officers": 2,
+      "heli": false,
+      "heliPos": null,
+      "health": null
+    },
+    "heli": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 5,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": true,
+      "heliPos": [
+        35,
+        9.5,
+        -90
+      ],
+      "health": null
+    },
+    "city": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliPos": null,
+      "health": null
+    }
+  },
+  "playtest_errors": [],
+  "shots": {
+    "combat.jpg": {
+      "bytes": 102345,
+      "over_cap": false,
+      "query": "?shot=combat"
+    },
+    "chase.jpg": {
+      "bytes": 111061,
+      "over_cap": false,
+      "query": "?shot=chase"
+    },
+    "heli.jpg": {
+      "bytes": 104286,
+      "over_cap": false,
+      "query": "?shot=heli"
+    },
+    "city.jpg": {
+      "bytes": 135251,
+      "over_cap": false,
+      "query": "?shot=city"
+    }
+  },
+  "shot_errors": []
+}

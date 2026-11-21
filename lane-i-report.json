@@ -1,0 +1,78 @@
+{
+  "playtest": {
+    "menu": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "starsLit": 0,
+      "hudText": "\u2606\u2606\u2606\u2606\u2606\n$500\n17:40\n0 km/h\nExplore Azure Bay"
+    },
+    "traffic": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "starsLit": 0,
+      "hudText": "\u2606\u2606\u2606\u2606\u2606\n$500\n17:40\n0 km/h\nExplore Azure Bay"
+    },
+    "chase": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 3,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": false,
+      "heliY": null,
+      "starsLit": 0,
+      "hudText": "\u2605\u2605\u2605\u2606\u2606\n$500\n17:40\n72 km/h\nPISTOL 12/48\nExplore Azure Bay"
+    },
+    "combat": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 2,
+      "policeCars": 2,
+      "officers": 2,
+      "heli": false,
+      "heliY": null,
+      "starsLit": 0,
+      "hudText": "\u2605\u2605\u2606\u2606\u2606\n$500\n17:40\n0 km/h\nPISTOL 12/48\nExplore Azure Bay"
+    },
+    "heli": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 5,
+      "policeCars": 3,
+      "officers": 2,
+      "heli": true,
+      "heliY": 9.5,
+      "starsLit": 0,
+      "hudText": "\u2605\u2605\u2605\u2605\u2605\n$500\n17:40\n0 km/h\nPISTOL 12/48\nExplore Azure Bay"
+    },
+    "city": {
+      "traffic": 8,
+      "peds": 12,
+      "pedsAlive": 12,
+      "wanted": 0,
+      "policeCars": 0,
+      "officers": 0,
+      "heli": false,
+      "heliY": null,
+      "starsLit": 0,
+      "hudText": "\u2606\u2606\u2606\u2606\u2606\n$500\n17:40\n0 km/h\nExplore Azure Bay"
+    }
+  },
+  "playtest_errors": [],
+  "expectation_failures": []
+}

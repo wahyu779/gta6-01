@@ -1,0 +1,736 @@
+{
+  "rms_max_after_R": {
+    "errors": [],
+    "samples_after_R": [
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 1.6312018140589568,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 14,
+          "rms": 0.005777421663183219
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 1.872108843537415,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 14,
+          "rms": 0.0048828125
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 1.9417687074829932,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 16,
+          "rms": 0.024623128287349548
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.0027210884353743,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 17,
+          "rms": 0.005910018768022561
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.3713378684807256,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 20,
+          "rms": 0.011472011840303447
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.440997732426304,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 20,
+          "rms": 0.00572560517556571
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.501950113378685,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 21,
+          "rms": 0.014414638104614757
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.56,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 21,
+          "rms": 0.0049071658306254345
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.6528798185941045,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 22,
+          "rms": 0.009474417925748171
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.742857142857143,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 22,
+          "rms": 0.026811042799399113
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.800907029478458,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 23,
+          "rms": 0.007242381335054358
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.8705668934240363,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 23,
+          "rms": 0.029654796054198608
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 2.9402267573696146,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 24,
+          "rms": 0.00583899450346748
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.0011791383219957,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 24,
+          "rms": 0.03476068697374548
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.082448979591837,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 25,
+          "rms": 0.005704746799583947
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.140498866213152,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 25,
+          "rms": 0.028721564784868637
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.221768707482993,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 26,
+          "rms": 0.005179004745018659
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.3001360544217686,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 27,
+          "rms": 0.013802044946389229
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.3726984126984125,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 27,
+          "rms": 0.006156992291464107
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      {
+        "debug": {
+          "supported": true,
+          "state": "running",
+          "currentTime": 3.4713832199546486,
+          "masterGain": 0.1599999964237213,
+          "schedulerRunning": true,
+          "stepsScheduled": 28,
+          "rms": 0.006403748558888672
+        },
+        "station": "naranja",
+        "label": "RADIO NARANJA 99.1 FM",
+        "chip": "\u266a RADIO NARANJA 99.1 FM"
+      }
+    ],
+    "max_rms": 0.03476068697374548,
+    "nonzero_count": 20,
+    "steps_first": 14,
+    "steps_last": 28,
+    "station": "naranja",
+    "chip": "\u266a RADIO NARANJA 99.1 FM"
+  },
+  "hud_dialog_lift": {
+    "errors": [],
+    "baseline_800": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2606\u2606\u2606\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 364,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 444,
+        "w": 111,
+        "h": 40,
+        "visible": true,
+        "text": "0 km/h"
+      },
+      "hud-ammo": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "FISTS \u2014/\u2014"
+      },
+      "hud-objective": {
+        "x": 318,
+        "y": 446,
+        "w": 163,
+        "h": 38,
+        "visible": true,
+        "text": "Explore Azure Bay"
+      },
+      "hud-fase3-radio": {
+        "x": 528,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 310,
+        "y": 412,
+        "w": 181,
+        "h": 32,
+        "visible": true,
+        "text": "No active mission"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": null,
+      "minimap": {
+        "x": 560,
+        "y": 260,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "baseline_800_overlaps": [],
+    "open_800": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2606\u2606\u2606\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 364,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 444,
+        "w": 111,
+        "h": 40,
+        "visible": true,
+        "text": "0 km/h"
+      },
+      "hud-ammo": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "FISTS \u2014/\u2014"
+      },
+      "hud-objective": {
+        "x": 318,
+        "y": 268,
+        "w": 163,
+        "h": 38,
+        "visible": true,
+        "text": "Explore Azure Bay"
+      },
+      "hud-fase3-radio": {
+        "x": 528,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 310,
+        "y": 226,
+        "w": 181,
+        "h": 32,
+        "visible": true,
+        "text": "No active mission"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": {
+        "x": 24,
+        "y": 320,
+        "w": 752,
+        "h": 152,
+        "visible": true,
+        "text": "ROOKYou washed up on my shore owing me a favour, kid. Time to pay it off \u2014 one small job, "
+      },
+      "minimap": {
+        "x": 560,
+        "y": 260,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "open_800_overlaps": [
+      {
+        "a": "azure-dialog",
+        "b": "hud-speed",
+        "area": 2884,
+        "ix": 103,
+        "iy": 28
+      },
+      {
+        "a": "azure-dialog",
+        "b": "minimap",
+        "area": 32832,
+        "ix": 216,
+        "iy": 152
+      }
+    ],
+    "open_1280": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2606\u2606\u2606\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 604,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 744,
+        "w": 111,
+        "h": 40,
+        "visible": true,
+        "text": "0 km/h"
+      },
+      "hud-ammo": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "FISTS \u2014/\u2014"
+      },
+      "hud-objective": {
+        "x": 558,
+        "y": 568,
+        "w": 163,
+        "h": 38,
+        "visible": true,
+        "text": "Explore Azure Bay"
+      },
+      "hud-fase3-radio": {
+        "x": 1008,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 550,
+        "y": 526,
+        "w": 181,
+        "h": 32,
+        "visible": true,
+        "text": "No active mission"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": {
+        "x": 260,
+        "y": 620,
+        "w": 760,
+        "h": 152,
+        "visible": true,
+        "text": "ROOKYou washed up on my shore owing me a favour, kid. Time to pay it off \u2014 one small job, "
+      },
+      "minimap": {
+        "x": 1040,
+        "y": 560,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "open_1280_overlaps": [],
+    "dialog_open": true,
+    "closed_1280": {
+      "hud-health": {
+        "x": 16,
+        "y": 16,
+        "w": 220,
+        "h": 14,
+        "visible": true,
+        "text": ""
+      },
+      "hud-wanted": {
+        "x": 16,
+        "y": 38,
+        "w": 220,
+        "h": 38,
+        "visible": true,
+        "text": "\u2606\u2606\u2606\u2606\u2606"
+      },
+      "hud-cash": {
+        "x": 16,
+        "y": 82,
+        "w": 220,
+        "h": 34,
+        "visible": true,
+        "text": "$500"
+      },
+      "hud-time": {
+        "x": 604,
+        "y": 16,
+        "w": 71,
+        "h": 31,
+        "visible": true,
+        "text": "17:40"
+      },
+      "hud-speed": {
+        "x": 16,
+        "y": 744,
+        "w": 111,
+        "h": 40,
+        "visible": true,
+        "text": "0 km/h"
+      },
+      "hud-ammo": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "FISTS \u2014/\u2014"
+      },
+      "hud-objective": {
+        "x": 558,
+        "y": 746,
+        "w": 163,
+        "h": 38,
+        "visible": true,
+        "text": "Explore Azure Bay"
+      },
+      "hud-fase3-radio": {
+        "x": 1008,
+        "y": 56,
+        "w": 256,
+        "h": 32,
+        "visible": true,
+        "text": "\u266a RADIO NARANJA 99.1 FM"
+      },
+      "hud-fase3-respect": {
+        "x": 16,
+        "y": 132,
+        "w": 196,
+        "h": 32,
+        "visible": true,
+        "text": "RESPECT 0 \u00b7 ROOKIE"
+      },
+      "hud-fase3-mission": {
+        "x": 550,
+        "y": 712,
+        "w": 181,
+        "h": 32,
+        "visible": true,
+        "text": "No active mission"
+      },
+      "hud-fase3-saved": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "\u2713 SAVED"
+      },
+      "azure-dialog": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0,
+        "visible": false,
+        "text": "ROOKYou washed up on my shore owing me a favour, kid. Time to pay it off \u2014 one small job, "
+      },
+      "minimap": {
+        "x": 1040,
+        "y": 560,
+        "w": 224,
+        "h": 224,
+        "visible": true,
+        "text": ""
+      }
+    },
+    "closed_1280_overlaps": [],
+    "saved_flash": "block",
+    "respect_250": "RESPECT 250 \u00b7 RESPECTED",
+    "saved_after": "none"
+  }
+}

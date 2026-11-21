@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AZURE BAY</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1622;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #eef1f5; }
+  #game { position: fixed; inset: 0; }
+  #game canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+  #hud-top-left { position: absolute; top: 16px; left: 16px; }
+  #hud-health { width: 220px; margin-bottom: 8px; }
+  #hud-health-bar { height: 12px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.5);
+    border-radius: 6px; overflow: hidden; }
+  #hud-health-fill { height: 100%; width: 100%; background: #4ade80; }
+  #hud-wanted { font-size: 22px; letter-spacing: 2px; color: #f5c518; margin-bottom: 6px; }
+  #hud-wanted span { opacity: .9; /* Lane H: was .35 — with the old faint
+    unlit colour in hud.js the empty stars were ~9% alpha and invisible
+    against bright sky; hud.js now sets inline opacity per star, this is
+    the no-JS fallback */ }
+  #hud-wanted span.lit { opacity: 1; }
+  #hud-cash { font-size: 22px; font-weight: 700; color: #7ee081; }
+  #hud-time { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 20px; font-weight: 600; }
+  #hud-speed { position: absolute; bottom: 16px; left: 16px; font-size: 26px; font-weight: 700; }
+  #hud-ammo { position: absolute; right: 16px; bottom: 252px; font-size: 20px; font-weight: 700;
+    letter-spacing: 1px; }
+  #hud-objective { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 16px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 8px;
+    max-width: 60vw; text-align: center; }
+  #minimap { position: fixed; right: 16px; bottom: 16px; z-index: 10;
+    border: 2px solid rgba(255,255,255,.6); border-radius: 8px;
+    background: rgba(10,25,40,.8); }
+
+  /* ---- menus ---- */
+  .menu { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
+    justify-content: center; background: rgba(5,12,20,.72); }
+  .menu.hidden { display: none; }
+  .panel { background: rgba(10,20,32,.92); border: 1px solid rgba(255,255,255,.18);
+    border-radius: 14px; padding: 32px 40px; max-width: 560px; text-align: center;
+    box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+  .panel h1 { margin: 0 0 6px; font-size: 44px; letter-spacing: 6px; color: #7ec8f2; }
+  .panel h2 { margin: 0 0 16px; font-size: 40px; letter-spacing: 4px; color: #e5534b; }
+  .panel p { margin: 0 0 18px; font-size: 16px; line-height: 1.5; color: #c8d2dc; }
+  .panel ul { text-align: left; margin: 0 auto 22px; padding-left: 20px; font-size: 15px;
+    line-height: 1.9; color: #dfe6ec; display: inline-block; }
+  .panel button { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700;
+    letter-spacing: 2px; color: #06202f; background: #7ec8f2; border: none;
+    border-radius: 8px; padding: 12px 36px; }
+  .panel button:hover { background: #a5d8f7; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div id="hud-top-left">
+    <div id="hud-health"><div id="hud-health-bar"><div id="hud-health-fill"></div></div></div>
+    <div id="hud-wanted"><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span></div>
+    <div id="hud-cash">$0</div>
+  </div>
+  <div id="hud-time">12:00</div>
+  <div id="hud-speed">0 km/h</div>
+  <div id="hud-ammo">FISTS —/—</div>
+  <div id="hud-objective">Welcome to Azure Bay</div>
+</div>
+<canvas id="minimap" width="220" height="220"></canvas>
+
+<div id="menu-start" class="menu">
+  <div class="panel">
+    <h1>AZURE BAY</h1>
+    <p>Fresh off the boat with empty pockets and a name to make — take jobs, steal cars, and own the bay.</p>
+    <ul>
+      <li><b>W A S D</b> — move / drive</li>
+      <li><b>Shift</b> — sprint</li>
+      <li><b>E</b> — talk / shop / safehouse / enter car</li>
+      <li><b>M</b> — missions &nbsp; <b>R</b> — radio (in car) / reload (on foot)</li>
+      <li><b>Click</b> — shoot &nbsp; <b>1 / 2 / 3</b> — weapon</li>
+      <li><b>Space</b> — handbrake</li>
+      <li><b>Esc</b> — pause</li>
+    </ul>
+    <button id="btn-start" type="button">START</button>
+  </div>
+</div>
+
+<div id="menu-pause" class="menu hidden">
+  <div class="panel">
+    <h1>PAUSED</h1>
+    <p>Take a breath. The bay will wait.</p>
+    <button id="btn-resume" type="button">RESUME</button>
+  </div>
+</div>
+
+<div id="menu-dead" class="menu hidden">
+  <div class="panel">
+    <h2>WASTED</h2>
+    <p>Azure Bay got the better of you this time.</p>
+    <button id="btn-restart" type="button">TRY AGAIN</button>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

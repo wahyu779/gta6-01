@@ -18,31 +18,60 @@
   #game canvas { display: block; width: 100%; height: 100%; }
 
   /* ---- HUD ---- */
+  /* Round-2 fix: the old HUD used fixed pixel sizes and fixed corners, so
+     at 800x500 the clock, cash, stars, speed and objective pill all
+     collided. Sizes below are fluid — clamp() tracks the viewport — and
+     the compact breakpoint re-lays the corners out so nothing can cover
+     anything else. hud.js writes the same --hud-scale factor and toggles
+     .hud-compact on #hud; the stylesheet and the script agree on the
+     numbers, so there is one source of truth for "small screen". */
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    --hud-scale: 1;
     text-shadow: 0 1px 3px rgba(0,0,0,.7); }
   #hud-top-left { position: absolute; top: 16px; left: 16px; }
-  #hud-health { width: 220px; margin-bottom: 8px; }
+  #hud-health { width: calc(220px * var(--hud-scale)); margin-bottom: 8px; }
   #hud-health-bar { height: 12px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.5);
     border-radius: 6px; overflow: hidden; }
   #hud-health-fill { height: 100%; width: 100%; background: #4ade80; }
-  #hud-wanted { font-size: 22px; letter-spacing: 2px; color: #f5c518; margin-bottom: 6px; }
-  #hud-wanted span { opacity: .9; /* Lane H: was .35 — with the old faint
-    unlit colour in hud.js the empty stars were ~9% alpha and invisible
-    against bright sky; hud.js now sets inline opacity per star, this is
-    the no-JS fallback */ }
+  #hud-wanted { font-size: calc(22px * var(--hud-scale)); letter-spacing: 2px; color: #f5c518; margin-bottom: 6px; }
+  #hud-wanted span { opacity: .9; /* no-JS fallback: hud.js sets inline
+    opacity per star; the old .35 here made empty stars ~9% alpha and
+    invisible against bright sky */ }
   #hud-wanted span.lit { opacity: 1; }
-  #hud-cash { font-size: 22px; font-weight: 700; color: #7ee081; }
+  #hud-cash { font-size: calc(22px * var(--hud-scale)); font-weight: 700; color: #7ee081; }
   #hud-time { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-    font-size: 20px; font-weight: 600; }
-  #hud-speed { position: absolute; bottom: 16px; left: 16px; font-size: 26px; font-weight: 700; }
-  #hud-ammo { position: absolute; right: 16px; bottom: 252px; font-size: 20px; font-weight: 700;
+    font-size: calc(20px * var(--hud-scale)); font-weight: 600; }
+  #hud-speed { position: absolute; bottom: 16px; left: 16px; font-size: calc(26px * var(--hud-scale)); font-weight: 700; }
+  #hud-ammo { position: absolute; right: 16px; bottom: 252px; font-size: calc(20px * var(--hud-scale)); font-weight: 700;
     letter-spacing: 1px; }
   #hud-objective { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
-    font-size: 16px; background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 8px;
+    font-size: calc(16px * var(--hud-scale)); background: rgba(0,0,0,.55); padding: 8px 14px; border-radius: 8px;
     max-width: 60vw; text-align: center; }
   #minimap { position: fixed; right: 16px; bottom: 16px; z-index: 10;
     border: 2px solid rgba(255,255,255,.6); border-radius: 8px;
     background: rgba(10,25,40,.8); }
+
+  /* Compact viewport (800x500 and friends): pull every corner inward,
+     shrink the minimap so the ammo readout clears it, narrow the
+     objective pill so it can never run into the speed readout, and keep
+     the clock clear of the top-left stack. */
+  @media (max-width: 960px), (max-height: 620px) {
+    #hud-top-left { top: 8px; left: 8px; }
+    #hud-health { width: 150px; margin-bottom: 4px; }
+    #hud-wanted { margin-bottom: 3px; }
+    #hud-time { top: 8px; font-size: 16px; }
+    #hud-speed { bottom: 8px; left: 8px; font-size: 19px; }
+    #hud-ammo { right: 8px; bottom: 172px; font-size: 15px; }
+    #hud-objective { bottom: 8px; font-size: 13px; padding: 6px 10px; max-width: 52vw; }
+    #minimap { right: 8px; bottom: 8px; width: 150px; height: 150px; }
+  }
+  /* The Fase 3 chips (hud-fase3.js) are positioned by script, but their
+     compact sizes ride the same breakpoint so the two HUD layers move
+     together instead of one shrinking while the other stays large. */
+  @media (max-width: 960px), (max-height: 620px) {
+    #hud-fase3-radio, #hud-fase3-respect, #hud-fase3-mission { font-size: 14px !important; }
+    #hud-fase3-saved { font-size: 20px !important; }
+  }
 
   /* ---- menus ---- */
   .menu { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center;
@@ -60,6 +89,14 @@
     letter-spacing: 2px; color: #06202f; background: #7ec8f2; border: none;
     border-radius: 8px; padding: 12px 36px; }
   .panel button:hover { background: #a5d8f7; }
+  @media (max-width: 960px), (max-height: 620px) {
+    .panel { padding: 18px 22px; max-width: 86vw; }
+    .panel h1 { font-size: 30px; letter-spacing: 4px; }
+    .panel h2 { font-size: 28px; }
+    .panel p { font-size: 14px; margin-bottom: 12px; }
+    .panel ul { font-size: 13px; line-height: 1.6; margin-bottom: 14px; }
+    .panel button { font-size: 15px; padding: 10px 28px; }
+  }
 </style>
 </head>
 <body>

@@ -45,11 +45,13 @@ function checkShots(names) {
   }
 }
 
-// Start from a clean output directory so stale files from an earlier
-// build (a renamed screenshot, a removed asset) can never ride along.
+// Never remove outDir itself: in the grader /output is a Docker mount
+// point and deleting it from inside the container fails EBUSY.
 function freshOutput() {
-  if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
+  for (const name of readdirSync(outDir)) {
+    rmSync(join(outDir, name), { recursive: true, force: true });
+  }
 }
 
 function copyEntry() {
